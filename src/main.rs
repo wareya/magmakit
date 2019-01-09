@@ -1,10 +1,9 @@
-#[macro_use]
-extern crate glium;
-extern crate image;
+use glium::{implement_vertex, uniform};
+use std::io::BufReader;
+use std::fs::File;
 
-use std::io::Cursor;
-
-fn main() {
+fn main()
+{
     use glium::{glutin, Surface};
     use glium::texture::SrgbTexture2d;
     
@@ -13,7 +12,7 @@ fn main() {
     let context = glutin::ContextBuilder::new();
     let display = glium::Display::new(window, context, &events_loop).unwrap();
     
-    let image = image::load(Cursor::new(&include_bytes!("test/mychar.png")[..]), image::PNG).unwrap().to_rgba();
+    let image = image::load(BufReader::new(File::open("src/test/mychar.png").unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
     let image_dimensions = image.dimensions();
     let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
     let texture = SrgbTexture2d::new(&display, image).unwrap();
@@ -62,17 +61,20 @@ fn main() {
     let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
     
     struct DrawEvent<'a> {
-        x: f32,
-        y: f32,
-        xscale: f32,
-        yscale: f32,
+        matrix : [[f32; 4]; 4],
         texture: &'a SrgbTexture2d
     }
     
     impl<'a> DrawEvent<'a> {
         fn new(x : f32, y : f32, xscale : f32, yscale : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
         {
-            DrawEvent{x, y, xscale, yscale, texture}
+            let matrix = [
+                [xscale, 0.0, 0.0, 0.0],
+                [0.0, yscale, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [x, y, 0.0, 1.0],
+            ];
+            DrawEvent{matrix, texture}
         }
     }
     
@@ -96,12 +98,6 @@ fn main() {
         
         for event in &draw_events
         {
-            let matrix_command = [
-                [event.xscale, 0.0, 0.0, 0.0],
-                [0.0, event.yscale, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [event.x, event.y, 0.0, 1.0],
-            ];
             let dims = event.texture.dimensions();
             let x_dim = dims.0 as f32;
             let y_dim = dims.1 as f32;
@@ -113,7 +109,7 @@ fn main() {
             ];
             let uniforms = uniform! {
                 matrix_view: matrix_view,
-                matrix_command: matrix_command,
+                matrix_command: event.matrix,
                 matrix_sprite: matrix_sprite,
                 tex: event.texture,
             };

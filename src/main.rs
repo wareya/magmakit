@@ -115,15 +115,9 @@ fn main()
                 [0.0, 0.0, 1.0, 0.0],
                 [x, y, 0.0, 1.0],
             ];
-            let matrix_scale = [
-                [xscale, 0.0, 0.0, 0.0],
-                [0.0, yscale, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ];
-            let matrix_rot = [
-                [angle_cos, -angle_sin, 0.0, 0.0],
-                [-angle_sin, -angle_cos, 0.0, 0.0],
+            let matrix_rotscale = [
+                [angle_cos*xscale, -angle_sin*xscale, 0.0, 0.0],
+                [-angle_sin*yscale, -angle_cos*yscale, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ];
@@ -133,8 +127,7 @@ fn main()
                 [0.0, 0.0, 1.0, 0.0],
                 [-xorigin, yorigin, 0.0, 1.0],
             ];
-            let mut matrix = m4mult(&matrix_pos, &matrix_scale);
-            matrix = m4mult(&matrix, &matrix_rot);
+            let mut matrix = m4mult(&matrix_pos, &matrix_rotscale);
             matrix = m4mult(&matrix, &matrix_origin);
             //let matrix = matrix_pos;
             DrawEvent{matrix, texture}
@@ -146,7 +139,7 @@ fn main()
     while !closed
     {
         t += 1.0;
-        let draw_events = vec!(DrawEvent::draw_angle(16.0, 24.0, 32.0, 32.0, 1.0, 1.0, t*0.01, &texture));
+        let draw_events = vec!(DrawEvent::draw_angle(16.0, 24.0, 32.0, 32.0, 1.0, (t*0.1/360.0f32).cos(), t*0.01, &texture));
         
         let mut target = display.draw();
         target.clear_color(0.5, 0.5, 0.5, 1.0);

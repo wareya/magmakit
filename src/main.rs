@@ -44,7 +44,7 @@ fn main()
         uniform mat4 matrix_sprite;
         void main() {
             v_tex_coords = tex_coords;
-            gl_Position = matrix_view * matrix_command * matrix_sprite * vec4(position, 0.0, 1.0);
+            gl_Position = matrix_view * matrix_command * vec4(position, 0.0, 1.0);
         }
     "#;
     
@@ -68,9 +68,12 @@ fn main()
     impl<'a> DrawEvent<'a> {
         fn new(x : f32, y : f32, xscale : f32, yscale : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
         {
+            let dims = texture.dimensions();
+            let x_dim = dims.0 as f32;
+            let y_dim = dims.1 as f32;
             let matrix = [
-                [xscale, 0.0, 0.0, 0.0],
-                [0.0, yscale, 0.0, 0.0],
+                [xscale*x_dim, 0.0, 0.0, 0.0],
+                [0.0, yscale*y_dim, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
                 [x, y, 0.0, 1.0],
             ];
@@ -98,19 +101,9 @@ fn main()
         
         for event in &draw_events
         {
-            let dims = event.texture.dimensions();
-            let x_dim = dims.0 as f32;
-            let y_dim = dims.1 as f32;
-            let matrix_sprite = [
-                [x_dim, 0.0, 0.0, 0.0],
-                [0.0, y_dim, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-            ];
             let uniforms = uniform! {
                 matrix_view: matrix_view,
                 matrix_command: event.matrix,
-                matrix_sprite: matrix_sprite,
                 tex: event.texture,
             };
             target.draw(&vertex_buffer, &indices, &program, &uniforms, &Default::default()).unwrap();

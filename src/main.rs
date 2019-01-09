@@ -9,12 +9,6 @@ fn m4mult(a : &[[f32; 4]; 4], b : &[[f32; 4]; 4]) -> [[f32; 4]; 4]
     {
         for x in 0..4
         {
-            /*
-            output[x][y] += a[0][y] * b[x][0];
-            output[x][y] += a[1][y] * b[x][1];
-            output[x][y] += a[2][y] * b[x][2];
-            output[x][y] += a[3][y] * b[x][3];
-            */
             output[x][y] += a[0][y] * b[x][0];
             output[x][y] += a[1][y] * b[x][1];
             output[x][y] += a[2][y] * b[x][2];

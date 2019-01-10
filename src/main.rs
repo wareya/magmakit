@@ -37,18 +37,27 @@ fn main()
     
     implement_vertex!(Vertex, position);
     
+    /*
+    struct Image {
+        origin: (f64, f64),
+        topleft: (f64, f64),
+        topright: (f64, f64),
+    }
+    */
+    
     struct Sprite {
         origin: (f64, f64),
-        texture: SrgbTexture2d
+        texture: SrgbTexture2d,
     }
     
     struct DrawEvent {
         matrix: [[f32; 4]; 4],
-        sprite: String
+        sprite: usize
     }
     
     struct Renderer {
-        sprites: HashMap<String, Sprite>,
+        sprite_index_counter: usize,
+        sprites: HashMap<usize, Sprite>,
         events: Vec<DrawEvent>,
         display: glium::Display,
         vertex_buffer: glium::VertexBuffer<Vertex>,
@@ -82,33 +91,37 @@ fn main()
         fn load(display : glium::Display) -> Renderer
         {
             let (vertex_buffer, indices, program) = Renderer::build_program(&display);
-            Renderer{sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
+            Renderer{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
         }
         
-        fn load_sprite(&mut self, name : String, fname : &str, origin : (f64, f64))
+        fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> usize
         {
+            let index = self.sprite_index_counter;
             let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
             let image_dimensions = image.dimensions();
             let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
             let texture = SrgbTexture2d::new(&self.display, image).unwrap();
             
-            self.sprites.insert(name, Sprite{origin, texture});
+            self.sprites.insert(index, Sprite{origin, texture});
+            
+            self.sprite_index_counter += 1;
+            index
         }
         
-        fn draw(&mut self, spritename : &str, x : f32, y : f32)
+        fn draw(&mut self, spriteindex : usize, x : f32, y : f32)
         {
-            self.draw_scaled(spritename, x, y, 1.0, 1.0)
+            self.draw_scaled(spriteindex, x, y, 1.0, 1.0)
         }
-        fn draw_scaled(&mut self, spritename : &str, x : f32, y : f32, xscale : f32, yscale : f32)
+        fn draw_scaled(&mut self, spriteindex : usize, x : f32, y : f32, xscale : f32, yscale : f32)
         {
-            self.draw_angle(spritename, x, y, xscale, yscale, 0.0)
+            self.draw_angle(spriteindex, x, y, xscale, yscale, 0.0)
         }
-        fn draw_angle(&mut self, spritename : &str, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+        fn draw_angle(&mut self, spriteindex : usize, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
         {
             let angle_radians = deg2rad(angle as f64);
             let angle_cos = angle_radians.cos() as f32;
             let angle_sin = angle_radians.sin() as f32;
-            let sprite = self.sprites.get(spritename).unwrap();
+            let sprite = self.sprites.get(&spriteindex).unwrap();
             let x_dim = sprite.texture.dimensions().0 as f32;
             let y_dim = sprite.texture.dimensions().1 as f32;
             let xorigin = sprite.origin.0 as f32;
@@ -134,13 +147,17 @@ fn main()
             let mut matrix = m4mult(&matrix_pos, &matrix_rotscale);
             matrix = m4mult(&matrix, &matrix_origin);
             
-            self.events.push(DrawEvent{matrix, sprite : spritename.to_string()})
+            self.draw_matrix(spriteindex, matrix)
+        }
+        fn draw_matrix(&mut self, spriteindex : usize, matrix : [[f32; 4]; 4])
+        {
+            self.events.push(DrawEvent{matrix, sprite : spriteindex})
         }
         
         fn render(&mut self)
         {
             let mut target = self.display.draw();
-        
+            
             target.clear_color(0.5, 0.5, 0.5, 1.0);
             
             let dims = target.get_dimensions();
@@ -169,30 +186,141 @@ fn main()
         }
     }
     
-    let mut renderer = Renderer::load(display);
-    renderer.load_sprite("mychar".to_string(), "src/test/mychar.png", (16.0, 24.0));
+    let renderer = Rc::new(RefCell::new(Renderer::load(display)));
+    
+    let mut parser = gammakit::Parser::new_from_default().unwrap();
+    let gmc_init = parser.give_me_bytecode(include_str!("gmc/init.gmc")).unwrap();
+    let gmc_step = parser.give_me_bytecode(include_str!("gmc/step.gmc")).unwrap();
+    let gmc_draw = parser.give_me_bytecode(include_str!("gmc/draw.gmc")).unwrap();
+    
+    use gammakit::Interpreter;
+    use gammakit::Value;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    
+    let mut interpreter = Interpreter::new(&gmc_init, Some(parser));
+    
+    interpreter.insert_default_internal_functions();
+    
+    {
+        let renderer_ref = Rc::clone(&renderer);
+        interpreter.insert_internal_func("sprite_load".to_string(), Rc::new(RefCell::new(move |_ : &mut Interpreter, mut args : Vec<Value>| -> Result<Value, String>
+        {
+            if args.len() != 3
+            {
+                return Err("error: expected exactly three arguments to sprite_load()".to_string());
+            }
+            let filename = match args.pop()
+            {
+                Some(Value::Text(filename)) => filename,
+                _ => return Err("error: first argument to sprite_load() must be text (filename)".to_string())
+            };
+            let xoffset = match args.pop()
+            {
+                Some(Value::Number(xoffset)) => xoffset,
+                _ => return Err("error: second argument to sprite_load() must be a number (xoffset)".to_string())
+            };
+            let yoffset = match args.pop()
+            {
+                Some(Value::Number(yoffset)) => yoffset,
+                _ => return Err("error: third argument to sprite_load() must be a number (yoffset)".to_string())
+            };
+            
+            let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err("error: failed to lock renderer in sprite_load()"))?;
+            
+            let sprite_index = renderer.load_sprite("src/test/mychar.png", (16.0, 24.0));
+            
+            Ok(Value::Number(sprite_index as f64))
+        })));
+    }
+    
+    {
+        let renderer_ref = Rc::clone(&renderer);
+        interpreter.insert_internal_func("draw_sprite".to_string(), Rc::new(RefCell::new(move |_ : &mut Interpreter, mut args : Vec<Value>| -> Result<Value, String>
+        {
+            if args.len() != 3
+            {
+                return Err("error: expected exactly three arguments to sprite_load()".to_string());
+            }
+            let index = match args.pop()
+            {
+                Some(Value::Number(index)) => index as usize,
+                _ => return Err("error: first argument to draw_sprite() must be a number (sprite id)".to_string())
+            };
+            let x = match args.pop()
+            {
+                Some(Value::Number(xoffset)) => xoffset as f32,
+                _ => return Err("error: second argument to draw_sprite() must be a number (xoffset)".to_string())
+            };
+            let y = match args.pop()
+            {
+                Some(Value::Number(yoffset)) => yoffset as f32,
+                _ => return Err("error: third argument to draw_sprite() must be a number (yoffset)".to_string())
+            };
+            
+            let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err("error: failed to lock renderer in draw_sprite()"))?;
+            
+            renderer.draw(index, x, y);
+            
+            Ok(Value::Number(0.0 as f64))
+        })));
+    }
+    
+    fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
+    {
+        while interpreter.step().is_ok() {}
+        if let Some(err) = &interpreter.last_error
+        {
+            panic!("{}", err);
+        }
+    };
+    
+    step_until_end_maybe_panic(&mut interpreter);
     
     let mut closed = false;
     let mut t = 0.0;
+    
+    use std::{thread, time};
+    
+    let frametime = time::Duration::from_millis(8);
+    
     while !closed
     {
-        t += 1.0;
+        let frame_start = time::Instant::now();
         
-        renderer.draw_angle("mychar", 32.0, 32.0, 1.0, (deg2rad(t*0.01*2.0)).cos() as f32, (t*0.01) as f32);
+        interpreter.restart(&gmc_step);
+        step_until_end_maybe_panic(&mut interpreter);
         
-        renderer.render();
+        interpreter.restart(&gmc_draw);
+        step_until_end_maybe_panic(&mut interpreter);
         
-        events_loop.poll_events(|event|
+        if let Ok(mut renderer) = renderer.try_borrow_mut()
         {
-            match event
+            renderer.render();
+            
+            events_loop.poll_events(|event|
             {
-                glutin::Event::WindowEvent { event, .. } => match event
+                match event
                 {
-                    glutin::WindowEvent::CloseRequested => closed = true,
-                    _ => ()
-                },
-                _ => (),
-            }
-        });
+                    glutin::Event::WindowEvent { event, .. } => match event
+                    {
+                        glutin::WindowEvent::CloseRequested => closed = true,
+                        _ => ()
+                    },
+                    _ => (),
+                }
+            });
+        }
+        else
+        {
+            panic!("error: failed to lock renderer in mainloop");
+        }
+        
+        let elapsed = frame_start.elapsed();
+        
+        if let Some(remaining) = frametime.checked_sub(elapsed)
+        {
+            thread::sleep(remaining);
+        }
     }
 }

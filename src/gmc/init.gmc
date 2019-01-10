@@ -1,0 +1,15 @@
+obj Character {
+    def create()
+    {
+        far x = 64;
+        far y = 64;
+        far xspeed = 1;
+        far yspeed = 0;
+        far sprite = sprite_load("src/test/mychar.png", 16.0, 24.0);
+    }
+}
+
+globalvar mychar;
+global.mychar = instance_create(Character);
+
+print("----init.gmc has been run");

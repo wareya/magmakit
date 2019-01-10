@@ -1,0 +1,4 @@
+with(Character)
+{
+    draw_sprite(sprite, x, y);
+}

@@ -7,4 +7,4 @@ edition = "2018"
 [dependencies]
 image = "*"
 glium = "*"
-gammakit = { path = "../rusttoy" }
+gammakit = { path = "../gammakit" }

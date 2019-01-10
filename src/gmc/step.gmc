@@ -1,0 +1,11 @@
+
+
+with(Character)
+{
+    x += xspeed;
+    y += yspeed;
+    if(x > 500 and xspeed > 0)
+        xspeed = -xspeed;
+    if(x < 10 and xspeed < 0)
+        xspeed = -xspeed;
+}

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use glium::{implement_vertex, uniform};
 use std::io::BufReader;
 use std::fs::File;
@@ -29,86 +30,89 @@ fn main()
     let context = glutin::ContextBuilder::new();
     let display = glium::Display::new(window, context, &events_loop).unwrap();
     
-    let image = image::load(BufReader::new(File::open("src/test/mychar.png").unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
-    let image_dimensions = image.dimensions();
-    let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
-    let texture = &SrgbTexture2d::new(&display, image).unwrap();
-    
     #[derive(Copy, Clone)]
     struct Vertex {
-        position: [f32; 2],
-        tex_coords: [f32; 2],
+        position: [f32; 2]
     }
     
-    implement_vertex!(Vertex, position, tex_coords);
+    implement_vertex!(Vertex, position);
     
-    let vertex1 = Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] };
-    let vertex2 = Vertex { position: [0.0, 1.0], tex_coords: [0.0, 1.0] };
-    let vertex3 = Vertex { position: [1.0, 0.0], tex_coords: [1.0, 0.0] };
-    let vertex4 = Vertex { position: [1.0, 1.0], tex_coords: [1.0, 1.0] };
-    let shape = vec![vertex1, vertex2, vertex3, vertex4];
+    struct Sprite {
+        origin: (f64, f64),
+        texture: SrgbTexture2d
+    }
     
-    let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip);
+    struct DrawEvent {
+        matrix: [[f32; 4]; 4],
+        sprite: String
+    }
     
-    let vertex_shader_src = r#"
-        #version 330
-        in vec2 position;
-        in vec2 tex_coords;
-        out vec2 v_tex_coords;
-        uniform mat4 matrix_view;
-        uniform mat4 matrix_command;
-        uniform mat4 matrix_sprite;
-        void main() {
-            v_tex_coords = tex_coords;
-            gl_Position = matrix_view * matrix_command * vec4(position, 0.0, 1.0);
-        }
-    "#;
+    struct Renderer {
+        sprites: HashMap<String, Sprite>,
+        events: Vec<DrawEvent>,
+        display: glium::Display,
+        vertex_buffer: glium::VertexBuffer<Vertex>,
+        indices: glium::index::NoIndices,
+        program: glium::Program
+    }
     
-    let fragment_shader_src = r#"
-        #version 330
-        in vec2 v_tex_coords;
-        out vec4 color;
-        uniform sampler2D tex;
-        void main() {
-            color = texture(tex, v_tex_coords);
-            if(color.a <= 0.5)
-                discard;
+    fn deg2rad(x : f64) -> f64
+    {
+        x * std::f64::consts::PI / 360.0
+    }
+    
+    impl Renderer {
+        fn build_program(display : &glium::Display) -> (glium::VertexBuffer<Vertex>, glium::index::NoIndices, glium::Program)
+        {
+            let vertex1 = Vertex { position: [0.0, 0.0] };
+            let vertex2 = Vertex { position: [0.0, 1.0] };
+            let vertex3 = Vertex { position: [1.0, 0.0] };
+            let vertex4 = Vertex { position: [1.0, 1.0] };
+            let shape = vec![vertex1, vertex2, vertex3, vertex4];
             
+            let vertex_buffer = glium::VertexBuffer::new(display, &shape).unwrap();
+            let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip);
+            
+            let vertex_shader_src = include_str!("glsl/vertex.glsl");
+            let fragment_shader_src = include_str!("glsl/fragment.glsl");
+            let program = glium::Program::from_source(display, vertex_shader_src, fragment_shader_src, None).unwrap();
+            
+            (vertex_buffer, indices, program)
         }
-    "#;
-    
-    let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
-    
-    struct DrawEvent<'a> {
-        matrix : [[f32; 4]; 4],
-        texture: &'a SrgbTexture2d
-    }
-    
-    impl<'a> DrawEvent<'a> {
-        fn draw_centered(x : f32, y : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
+        fn load(display : glium::Display) -> Renderer
         {
-            let dims = texture.dimensions();
-            let x_dim = dims.0 as f32;
-            let y_dim = dims.1 as f32;
-            DrawEvent::draw(x_dim/2.0, y_dim/2.0, x, y, texture)
+            let (vertex_buffer, indices, program) = Renderer::build_program(&display);
+            Renderer{sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
         }
-        fn draw(xorigin : f32, yorigin : f32, x : f32, y : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
+        
+        fn load_sprite(&mut self, name : String, fname : &str, origin : (f64, f64))
         {
-            DrawEvent::draw_scaled(xorigin, yorigin, x, y, 1.0, 1.0, texture)
+            let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
+            let image_dimensions = image.dimensions();
+            let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
+            let texture = SrgbTexture2d::new(&self.display, image).unwrap();
+            
+            self.sprites.insert(name, Sprite{origin, texture});
         }
-        fn draw_scaled(xorigin : f32, yorigin : f32, x : f32, y : f32, xscale : f32, yscale : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
+        
+        fn draw(&mut self, spritename : &str, x : f32, y : f32)
         {
-            DrawEvent::draw_angle(xorigin, yorigin, x, y, xscale, yscale, 0.0, texture)
+            self.draw_scaled(spritename, x, y, 1.0, 1.0)
         }
-        fn draw_angle(xorigin : f32, yorigin : f32, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32, texture : &'a SrgbTexture2d) -> DrawEvent<'a>
+        fn draw_scaled(&mut self, spritename : &str, x : f32, y : f32, xscale : f32, yscale : f32)
         {
-            let angle_radians = angle as f64 * std::f64::consts::PI / 360.0;
+            self.draw_angle(spritename, x, y, xscale, yscale, 0.0)
+        }
+        fn draw_angle(&mut self, spritename : &str, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+        {
+            let angle_radians = deg2rad(angle as f64);
             let angle_cos = angle_radians.cos() as f32;
             let angle_sin = angle_radians.sin() as f32;
-            let dims = texture.dimensions();
-            let x_dim = dims.0 as f32;
-            let y_dim = dims.1 as f32;
+            let sprite = self.sprites.get(spritename).unwrap();
+            let x_dim = sprite.texture.dimensions().0 as f32;
+            let y_dim = sprite.texture.dimensions().1 as f32;
+            let xorigin = sprite.origin.0 as f32;
+            let yorigin = sprite.origin.1 as f32;
             let matrix_pos = [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
@@ -129,42 +133,54 @@ fn main()
             ];
             let mut matrix = m4mult(&matrix_pos, &matrix_rotscale);
             matrix = m4mult(&matrix, &matrix_origin);
-            //let matrix = matrix_pos;
-            DrawEvent{matrix, texture}
+            
+            self.events.push(DrawEvent{matrix, sprite : spritename.to_string()})
+        }
+        
+        fn render(&mut self)
+        {
+            let mut target = self.display.draw();
+        
+            target.clear_color(0.5, 0.5, 0.5, 1.0);
+            
+            let dims = target.get_dimensions();
+            let x_dim = dims.0 as f32;
+            let y_dim = dims.1 as f32;
+            
+            let matrix_view = [
+                [2.0/x_dim, 0.0, 0.0, 0.0],
+                [0.0, -2.0/y_dim, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [-1.0, 1.0, 0.0, 1.0f32],
+            ];
+            
+            for event in self.events.drain(..)
+            {
+                let texture = &self.sprites.get(&event.sprite).unwrap().texture;
+                let uniforms = uniform! {
+                    matrix_view: matrix_view,
+                    matrix_command: event.matrix,
+                    tex: Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
+                };
+                target.draw(&self.vertex_buffer, &self.indices, &self.program, &uniforms, &Default::default()).unwrap();
+            }
+            
+            target.finish().unwrap();
         }
     }
+    
+    let mut renderer = Renderer::load(display);
+    renderer.load_sprite("mychar".to_string(), "src/test/mychar.png", (16.0, 24.0));
     
     let mut closed = false;
     let mut t = 0.0;
     while !closed
     {
         t += 1.0;
-        let draw_events = vec!(DrawEvent::draw_angle(16.0, 24.0, 32.0, 32.0, 1.0, (t*0.1/360.0f32).cos(), t*0.01, &texture));
         
-        let mut target = display.draw();
-        target.clear_color(0.5, 0.5, 0.5, 1.0);
+        renderer.draw_angle("mychar", 32.0, 32.0, 1.0, (deg2rad(t*0.01*2.0)).cos() as f32, (t*0.01) as f32);
         
-        let dims = target.get_dimensions();
-        let x_dim = dims.0 as f32;
-        let y_dim = dims.1 as f32;
-        
-        let matrix_view = [
-            [2.0/x_dim, 0.0, 0.0, 0.0],
-            [0.0, -2.0/y_dim, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [-1.0, 1.0, 0.0, 1.0f32],
-        ];
-        
-        for event in &draw_events
-        {
-            let uniforms = uniform! {
-                matrix_view: matrix_view,
-                matrix_command: event.matrix,
-                tex: Sampler::new(event.texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
-            };
-            target.draw(&vertex_buffer, &indices, &program, &uniforms, &Default::default()).unwrap();
-        }
-        target.finish().unwrap();
+        renderer.render();
         
         events_loop.poll_events(|event|
         {

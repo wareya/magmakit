@@ -9,7 +9,7 @@ subdef touching_tile()
     with (Tile)
     {
         if(other.bottom > top and other.top < bottom and other.right > left and other.left < right)
-            return 1;
+            return id;
     }
     return 0;
 }
@@ -25,13 +25,12 @@ with(Character)
     if(x < 10 and xspeed < 0)
         xspeed = -xspeed;
     
-    while(touching_tile())
+    while(touching_tile() != 0)
     {
         yspeed = 0;
-        y -= 0.5;
+        y -= bottom - touching_tile().top;
+        y -= 0.01;
     }
     
     yspeed += 0.03;
 }
-
-print("stepped");

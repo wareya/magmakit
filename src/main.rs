@@ -19,6 +19,16 @@ fn m4mult(a : &[[f32; 4]; 4], b : &[[f32; 4]; 4]) -> [[f32; 4]; 4]
     output
 }
 
+macro_rules! err_none_or_panic { ( $x:expr )  =>
+{
+    match $x
+    {
+        Err(Some(err)) => panic!("{}", err),
+        _ => ()
+    }
+} }
+
+
 fn main()
 {
     use glium::{glutin, Surface};
@@ -220,12 +230,12 @@ fn main()
     
     let mut interpreter = Interpreter::new(&gmc_init, Some(parser));
     
-    interpreter.insert_default_internal_functions();
+    interpreter.insert_default_bindings();
     
-    type RendererBinding = Fn(&mut Renderer, &mut Interpreter, Vec<Value>) -> Result<Value, String>;
+    type RendererBinding = Fn(&mut Renderer, Vec<Value>) -> Result<Value, String>;
     
     impl Renderer {
-        fn binding_sprite_load(&mut self, _ : &mut Interpreter, mut args : Vec<Value>) -> Result<Value, String>
+        fn binding_sprite_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
@@ -247,11 +257,11 @@ fn main()
                 _ => return Err("error: third argument to sprite_load() must be a number (yoffset)".to_string())
             };
             
-            let sprite_index = self.load_sprite("src/test/mychar.png", (16.0, 24.0));
+            let sprite_index = self.load_sprite(&filename, (xoffset, yoffset));
             
             Ok(build_custom(0, sprite_index))
         }
-        fn binding_draw_sprite(&mut self, _ : &mut Interpreter, mut args : Vec<Value>) -> Result<Value, String>
+        fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
@@ -276,11 +286,11 @@ fn main()
         fn insert_binding(interpreter : &mut Interpreter, renderer : &Rc<RefCell<Renderer>>, name : &'static str, func : &'static RendererBinding)
         {
             let renderer_ref = Rc::clone(&renderer);
-            interpreter.insert_internal_func(name.to_string(), Rc::new(RefCell::new(move |interpreter : &mut Interpreter, args : Vec<Value>| -> Result<Value, String>
+            interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : Vec<Value>| -> Result<Value, String>
             {
                 let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err(format!("error: failed to lock renderer in {}()", name)))?;
                 
-                func(&mut *renderer, interpreter, args)
+                func(&mut *renderer, args)
             })));
         }
     };
@@ -292,6 +302,7 @@ fn main()
     fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
     {
         while interpreter.step().is_ok() {}
+        
         if let Some(err) = &interpreter.last_error
         {
             panic!("{}", err);
@@ -310,10 +321,10 @@ fn main()
     {
         let frame_start = time::Instant::now();
         
-        interpreter.restart(&gmc_step);
+        err_none_or_panic!(interpreter.restart(&gmc_step));
         step_until_end_maybe_panic(&mut interpreter);
         
-        interpreter.restart(&gmc_draw);
+        err_none_or_panic!(interpreter.restart(&gmc_draw));
         step_until_end_maybe_panic(&mut interpreter);
         
         if let Ok(mut renderer) = renderer.try_borrow_mut()

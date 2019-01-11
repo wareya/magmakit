@@ -1,3 +1,14 @@
+globaldef update_bbox(inst)
+{
+    with(inst)
+    {
+        bbox[0] = offsets[0] + y;
+        bbox[1] = offsets[1] + y;
+        bbox[2] = offsets[2] + x;
+        bbox[3] = offsets[3] + x;
+    }
+}
+
 obj Character {
     def create()
     {
@@ -7,16 +18,10 @@ obj Character {
         far yspeed = 0;
         far sprite = sprite_load("src/test/mychar.png", 16, 32);
         
-        far top_offset    = -16;
-        far bottom_offset = +16;
+        far offsets = [-16, +16, -8, +8];
+        far bbox = [0,0,0,0];
         
-        far left_offset   = -8;
-        far right_offset  = +8;
-        
-        far top = top_offset+y;
-        far bottom = bottom_offset+y;
-        far left = left_offset+x;
-        far right = right_offset+x;
+        update_bbox(id);
     }
 }
 
@@ -35,16 +40,10 @@ obj Tile {
         far x = 16+arg_x*32;
         far y = 16+arg_y*32;
         
-        far top_offset    = -16;
-        far bottom_offset = +16;
+        far offsets = [-16, +16, -16, +16];
+        far bbox = [0,0,0,0];
         
-        far left_offset   = -16;
-        far right_offset  = +16;
-        
-        far top = top_offset+y;
-        far bottom = bottom_offset+y;
-        far left = left_offset+x;
-        far right = right_offset+x;
+        update_bbox(id);
     }
 }
 

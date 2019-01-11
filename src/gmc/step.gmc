@@ -1,14 +1,20 @@
+def aabb_overlap(mover_bbox, static_bbox)
+{
+    if(mover_bbox[1] > static_bbox[0]
+        and mover_bbox[0] < static_bbox[1]
+        and mover_bbox[3] > static_bbox[2]
+        and mover_bbox[2] < static_bbox[3])
+        return 1.0;
+}
+
 subdef touching_tile()
 {
-    top = top_offset+y;
-    bottom = bottom_offset+y;
-    left = left_offset+x;
-    right = right_offset+x;
+    update_bbox(id);
     
-    var other = id;
+    var mover = id;
     with (Tile)
     {
-        if(other.bottom > top and other.top < bottom and other.right > left and other.left < right)
+        if(aabb_overlap(mover.bbox, id.bbox))
             return id;
     }
     return 0;
@@ -25,11 +31,14 @@ with(Character)
     if(x < 10 and xspeed < 0)
         xspeed = -xspeed;
     
-    while(touching_tile() != 0)
+    var touching = touching_tile();
+    while(touching != 0)
     {
         yspeed = 0;
-        y -= bottom - touching_tile().top;
+        y -= bbox[1] - touching.bbox[0];
         y -= 0.01;
+        
+        touching = touching_tile();
     }
     
     yspeed += 0.03;

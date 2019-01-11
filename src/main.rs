@@ -52,12 +52,12 @@ fn main()
     
     struct DrawEvent {
         matrix: [[f32; 4]; 4],
-        sprite: usize
+        sprite: u64
     }
     
     struct Renderer {
-        sprite_index_counter: usize,
-        sprites: HashMap<usize, Sprite>,
+        sprite_index_counter: u64,
+        sprites: HashMap<u64, Sprite>,
         events: Vec<DrawEvent>,
         display: glium::Display,
         vertex_buffer: glium::VertexBuffer<Vertex>,
@@ -94,7 +94,7 @@ fn main()
             Renderer{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
         }
         
-        fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> usize
+        fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
         {
             let index = self.sprite_index_counter;
             let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
@@ -108,15 +108,15 @@ fn main()
             index
         }
         
-        fn draw(&mut self, spriteindex : usize, x : f32, y : f32)
+        fn draw(&mut self, spriteindex : u64, x : f32, y : f32)
         {
             self.draw_scaled(spriteindex, x, y, 1.0, 1.0)
         }
-        fn draw_scaled(&mut self, spriteindex : usize, x : f32, y : f32, xscale : f32, yscale : f32)
+        fn draw_scaled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
         {
             self.draw_angle(spriteindex, x, y, xscale, yscale, 0.0)
         }
-        fn draw_angle(&mut self, spriteindex : usize, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+        fn draw_angle(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
         {
             let angle_radians = deg2rad(angle as f64);
             let angle_cos = angle_radians.cos() as f32;
@@ -149,7 +149,7 @@ fn main()
             
             self.draw_matrix(spriteindex, matrix)
         }
-        fn draw_matrix(&mut self, spriteindex : usize, matrix : [[f32; 4]; 4])
+        fn draw_matrix(&mut self, spriteindex : u64, matrix : [[f32; 4]; 4])
         {
             self.events.push(DrawEvent{matrix, sprite : spriteindex})
         }
@@ -195,6 +195,26 @@ fn main()
     
     use gammakit::Interpreter;
     use gammakit::Value;
+    use gammakit::Custom as CustomStorage;
+    fn build_custom(discrim : u64, storage : u64) -> Value
+    {
+        Value::Custom(CustomStorage{discrim, storage})
+    }
+    fn match_custom(val : Value, want_discrim : u64) -> Option<u64>
+    {
+        match val
+        {
+            Value::Custom(CustomStorage{discrim, storage}) =>
+            {
+                if discrim == want_discrim
+                {
+                    return Some(storage);
+                }
+            }
+            _ => ()
+        }
+        None
+    }
     use std::rc::Rc;
     use std::cell::RefCell;
     
@@ -230,7 +250,7 @@ fn main()
             
             let sprite_index = renderer.load_sprite("src/test/mychar.png", (16.0, 24.0));
             
-            Ok(Value::Number(sprite_index as f64))
+            Ok(build_custom(0, sprite_index))
         })));
     }
     
@@ -242,11 +262,8 @@ fn main()
             {
                 return Err("error: expected exactly three arguments to sprite_load()".to_string());
             }
-            let index = match args.pop()
-            {
-                Some(Value::Number(index)) => index as usize,
-                _ => return Err("error: first argument to draw_sprite() must be a number (sprite id)".to_string())
-            };
+            let index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
+            let index = match_custom(index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
             let x = match args.pop()
             {
                 Some(Value::Number(xoffset)) => xoffset as f32,

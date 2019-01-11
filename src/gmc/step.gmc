@@ -1,9 +1,10 @@
-def aabb_overlap(mover_bbox, static_bbox)
+// I could pass literal arrays here, but it's technically slower to do so since it copies a vector instead of a couple u64s
+def aabb_overlap(mover, static)
 {
-    if(mover_bbox[1] > static_bbox[0]
-        and mover_bbox[0] < static_bbox[1]
-        and mover_bbox[3] > static_bbox[2]
-        and mover_bbox[2] < static_bbox[3])
+    if(mover.bbox[1] > static.bbox[0]
+        and mover.bbox[0] < static.bbox[1]
+        and mover.bbox[3] > static.bbox[2]
+        and mover.bbox[2] < static.bbox[3])
         return 1.0;
 }
 
@@ -14,7 +15,7 @@ subdef touching_tile()
     var mover = id;
     with (Tile)
     {
-        if(aabb_overlap(mover.bbox, id.bbox))
+        if(aabb_overlap(mover, id))
             return id;
     }
     return 0;

@@ -118,15 +118,15 @@ fn main()
             index
         }
         
-        fn draw(&mut self, spriteindex : u64, x : f32, y : f32)
+        fn draw_sprite(&mut self, spriteindex : u64, x : f32, y : f32)
         {
-            self.draw_scaled(spriteindex, x, y, 1.0, 1.0)
+            self.draw_sprite_scaled(spriteindex, x, y, 1.0, 1.0)
         }
-        fn draw_scaled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
+        fn draw_sprite_scaled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
         {
-            self.draw_angle(spriteindex, x, y, xscale, yscale, 0.0)
+            self.draw_sprite_angled(spriteindex, x, y, xscale, yscale, 0.0)
         }
-        fn draw_angle(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+        fn draw_sprite_angled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
         {
             let angle_radians = deg2rad(angle as f64);
             let angle_cos = angle_radians.cos() as f32;
@@ -157,9 +157,9 @@ fn main()
             let mut matrix = m4mult(&matrix_pos, &matrix_rotscale);
             matrix = m4mult(&matrix, &matrix_origin);
             
-            self.draw_matrix(spriteindex, matrix)
+            self.draw_sprite_transformed(spriteindex, matrix)
         }
-        fn draw_matrix(&mut self, spriteindex : u64, matrix : [[f32; 4]; 4])
+        fn draw_sprite_transformed(&mut self, spriteindex : u64, matrix : [[f32; 4]; 4])
         {
             self.events.push(DrawEvent{matrix, sprite : spriteindex})
         }
@@ -279,10 +279,11 @@ fn main()
                 Some(Value::Number(yoffset)) => yoffset as f32,
                 _ => return Err("error: third argument to draw_sprite() must be a number (yoffset)".to_string())
             };
-            self.draw(index, x, y);
+            self.draw_sprite(index, x, y);
             
             Ok(Value::Number(0.0 as f64))
         }
+        // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a way of passing it around without copying it.
         fn insert_binding(interpreter : &mut Interpreter, renderer : &Rc<RefCell<Renderer>>, name : &'static str, func : &'static RendererBinding)
         {
             let renderer_ref = Rc::clone(&renderer);

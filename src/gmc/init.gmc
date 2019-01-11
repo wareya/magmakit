@@ -5,11 +5,56 @@ obj Character {
         far y = 64;
         far xspeed = 1;
         far yspeed = 0;
-        far sprite = sprite_load("src/test/mychar.png", 16.0, 24.0);
+        far sprite = sprite_load("src/test/mychar.png", 16, 32);
+        
+        far top_offset    = -16;
+        far bottom_offset = +16;
+        
+        far left_offset   = -8;
+        far right_offset  = +8;
+        
+        far top = top_offset+y;
+        far bottom = bottom_offset+y;
+        far left = left_offset+x;
+        far right = right_offset+x;
     }
 }
 
 globalvar mychar;
 global.mychar = instance_create(Character);
+
+globalvar tile_sprite = sprite_load("src/test/tile.png", 16, 16);
+
+obj Tile {
+    def create()
+    {
+        far sprite = global.tile_sprite;
+    }
+    def init(arg_x, arg_y)
+    {
+        far x = 16+arg_x*32;
+        far y = 16+arg_y*32;
+        
+        far top_offset    = -16;
+        far bottom_offset = +16;
+        
+        far left_offset   = -16;
+        far right_offset  = +16;
+        
+        far top = top_offset+y;
+        far bottom = bottom_offset+y;
+        far left = left_offset+x;
+        far right = right_offset+x;
+    }
+}
+
+def make_tile(x, y)
+{
+    var tile = instance_create(Tile);
+    tile.init(x, y);
+}
+
+for(var i = 0; i < 20; i++)
+    make_tile(i,5-floor(i/4));
 
 print("----init.gmc has been run");

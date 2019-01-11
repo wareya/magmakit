@@ -222,9 +222,10 @@ fn main()
     
     interpreter.insert_default_internal_functions();
     
-    {
-        let renderer_ref = Rc::clone(&renderer);
-        interpreter.insert_internal_func("sprite_load".to_string(), Rc::new(RefCell::new(move |_ : &mut Interpreter, mut args : Vec<Value>| -> Result<Value, String>
+    type RendererBinding = Fn(&mut Renderer, &mut Interpreter, Vec<Value>) -> Result<Value, String>;
+    
+    impl Renderer {
+        fn binding_sprite_load(&mut self, _ : &mut Interpreter, mut args : Vec<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
@@ -246,17 +247,11 @@ fn main()
                 _ => return Err("error: third argument to sprite_load() must be a number (yoffset)".to_string())
             };
             
-            let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err("error: failed to lock renderer in sprite_load()"))?;
-            
-            let sprite_index = renderer.load_sprite("src/test/mychar.png", (16.0, 24.0));
+            let sprite_index = self.load_sprite("src/test/mychar.png", (16.0, 24.0));
             
             Ok(build_custom(0, sprite_index))
-        })));
-    }
-    
-    {
-        let renderer_ref = Rc::clone(&renderer);
-        interpreter.insert_internal_func("draw_sprite".to_string(), Rc::new(RefCell::new(move |_ : &mut Interpreter, mut args : Vec<Value>| -> Result<Value, String>
+        }
+        fn binding_draw_sprite(&mut self, _ : &mut Interpreter, mut args : Vec<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
@@ -274,14 +269,25 @@ fn main()
                 Some(Value::Number(yoffset)) => yoffset as f32,
                 _ => return Err("error: third argument to draw_sprite() must be a number (yoffset)".to_string())
             };
-            
-            let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err("error: failed to lock renderer in draw_sprite()"))?;
-            
-            renderer.draw(index, x, y);
+            self.draw(index, x, y);
             
             Ok(Value::Number(0.0 as f64))
-        })));
-    }
+        }
+        fn insert_binding(interpreter : &mut Interpreter, renderer : &Rc<RefCell<Renderer>>, name : &'static str, func : &'static RendererBinding)
+        {
+            let renderer_ref = Rc::clone(&renderer);
+            interpreter.insert_internal_func(name.to_string(), Rc::new(RefCell::new(move |interpreter : &mut Interpreter, args : Vec<Value>| -> Result<Value, String>
+            {
+                let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err(format!("error: failed to lock renderer in {}()", name)))?;
+                
+                func(&mut *renderer, interpreter, args)
+            })));
+        }
+    };
+    
+    Renderer::insert_binding(&mut interpreter, &renderer, "sprite_load", &Renderer::binding_sprite_load);
+    Renderer::insert_binding(&mut interpreter, &renderer, "draw_sprite", &Renderer::binding_draw_sprite);
+    
     
     fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
     {
@@ -295,7 +301,6 @@ fn main()
     step_until_end_maybe_panic(&mut interpreter);
     
     let mut closed = false;
-    let mut t = 0.0;
     
     use std::{thread, time};
     

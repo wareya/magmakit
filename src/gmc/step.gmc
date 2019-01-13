@@ -5,7 +5,7 @@ def aabb_overlap(mover, static)
         and mover.bbox[0] < static.bbox[1]
         and mover.bbox[3] > static.bbox[2]
         and mover.bbox[2] < static.bbox[3])
-        return 1.0;
+        return true;
 }
 
 subdef touching_tile()
@@ -18,7 +18,7 @@ subdef touching_tile()
         if(aabb_overlap(mover, id))
             return id;
     }
-    return 0;
+    return false;
 }
 
 with(Character)

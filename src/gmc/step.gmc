@@ -10,13 +10,12 @@ def aabb_overlap(mover, static)
 
 subdef touching_tile()
 {
-    update_bbox(id);
+    update_bbox(self);
     
-    var mover = id;
     with (Tile)
     {
-        if(aabb_overlap(mover, id))
-            return id;
+        if(aabb_overlap(other, self))
+            return self;
     }
     return false;
 }

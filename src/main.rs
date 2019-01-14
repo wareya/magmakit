@@ -1,6 +1,6 @@
 use std::collections::{VecDeque, HashMap};
 use glium::{implement_vertex, uniform};
-use std::io::BufReader;
+use std::io::{Read, BufReader};
 use std::fs::File;
 
 fn m4mult(a : &[[f32; 4]; 4], b : &[[f32; 4]; 4]) -> [[f32; 4]; 4]
@@ -28,12 +28,60 @@ macro_rules! err_none_or_panic { ( $x:expr )  =>
     }
 } }
 
+fn read_bytes(file : &mut BufReader<File>, fname : &str) -> Result<Vec<u8>, String>
+{
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).or_else(|_| Err(format!("error: failed to load file `{}` into a binary buffer", fname)))?;
+    Ok(bytes)
+}
+fn read_string(file : &mut BufReader<File>, fname : &str) -> Result<String, String>
+{
+    let mut string = String::new();
+    file.read_to_string(&mut string).or_else(|_| Err(format!("error: failed to load file `{}` into string", fname)))?;
+    Ok(string)
+}
+
+fn open_file(root : &String, fname : &str) -> Result<BufReader<File>, String>
+{
+    if let Ok(f) = File::open(format!("{}/{}", root, fname))
+    {
+        Ok(BufReader::new(f))
+    }
+    // FIXME add flag to disable
+    else if let Ok(f) = File::open(fname)
+    {
+        Ok(BufReader::new(f))
+    }
+    else
+    {
+        return Err(format!("error: failed to open file `{}`", fname));
+    }
+}
+
+fn load_bytes(root : &String, fname : &str) -> Result<Vec<u8>, String>
+{
+    let mut file = open_file(root, fname)?;
+    return read_bytes(&mut file, fname);
+}
+fn load_string(root : &String, fname : &str) -> Result<String, String>
+{
+    let mut file = open_file(root, fname)?;
+    return read_string(&mut file, fname);
+}
+
+
 
 fn main()
 {
     use glium::{glutin, Surface};
     use glium::texture::SrgbTexture2d;
     use glium::uniforms::{Sampler, MinifySamplerFilter, MagnifySamplerFilter};
+    
+    let mut program_path = std::env::current_exe().unwrap();
+    program_path.pop();
+    let program_path = program_path.to_str().unwrap().to_string();
+    
+    println!("running from path `{}`", program_path);
     
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new().with_dimensions(glutin::dpi::LogicalSize::new(800.0, 600.0));
@@ -76,13 +124,17 @@ fn main()
     }
     
     struct Engine {
+        program_path: String,
+        
         sprite_index_counter: u64,
         sprites: HashMap<u64, SpriteSheet>,
         events: Vec<DrawEvent>,
+        
         display: glium::Display,
+        
         vertex_buffer: glium::VertexBuffer<Vertex>,
         indices: glium::index::NoIndices,
-        program: glium::Program
+        glprogram: glium::Program
     }
     
     fn deg2rad(x : f64) -> f64
@@ -91,13 +143,13 @@ fn main()
     }
     
     impl Engine {
-        fn build_program(display : &glium::Display) -> glium::Program
+        fn build_glprogram(display : &glium::Display, program_path : &String) -> glium::Program
         {
-            let vertex_shader_src = include_str!("glsl/vertex.glsl");
-            let fragment_shader_src = include_str!("glsl/fragment.glsl");
-            let program = glium::Program::from_source(display, vertex_shader_src, fragment_shader_src, None).unwrap();
+            let vertex_shader_src = load_string(program_path, "data/glsl/vertex.glsl").unwrap();
+            let fragment_shader_src = load_string(program_path, "data/glsl/fragment.glsl").unwrap();
+            let glprogram = glium::Program::from_source(display, &vertex_shader_src, &fragment_shader_src, None).unwrap();
             
-            program
+            glprogram
         }
         fn build_vertex_buffer(display : &glium::Display) -> (glium::VertexBuffer<Vertex>, glium::index::NoIndices)
         {
@@ -112,17 +164,17 @@ fn main()
             
             (vertex_buffer, indices)
         }
-        fn load(display : glium::Display) -> Engine
+        fn load(display : glium::Display, program_path : String) -> Engine
         {
-            let program = Engine::build_program(&display);
+            let glprogram = Engine::build_glprogram(&display, &program_path);
             let (vertex_buffer, indices) = Engine::build_vertex_buffer(&display);
-            Engine{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
+            Engine{program_path, sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, glprogram}
         }
         
         fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
         {
             let index = self.sprite_index_counter;
-            let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
+            let image = image::load(open_file(&self.program_path, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
             let image_dimensions = image.dimensions();
             let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
             let texture = SrgbTexture2d::new(&self.display, image).unwrap();
@@ -136,7 +188,7 @@ fn main()
         fn load_sprite_with_subimages(&mut self, fname : &str, images : Vec<SpriteImage>) -> u64
         {
             let index = self.sprite_index_counter;
-            let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
+            let image = image::load(open_file(&self.program_path, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
             let image_dimensions = image.dimensions();
             let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
             let texture = SrgbTexture2d::new(&self.display, image).unwrap();
@@ -229,19 +281,19 @@ fn main()
                     tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
                     tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
                 };
-                target.draw(&self.vertex_buffer, &self.indices, &self.program, &uniforms, &Default::default()).unwrap();
+                target.draw(&self.vertex_buffer, &self.indices, &self.glprogram, &uniforms, &Default::default()).unwrap();
             }
             
             target.finish().unwrap();
         }
     }
     
-    let engine = Rc::new(RefCell::new(Engine::load(display)));
+    let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone())));
     
     let mut parser = gammakit::Parser::new_from_default().unwrap();
-    let gmc_init = parser.give_me_bytecode(include_str!("gmc/init.gmc")).unwrap();
-    let gmc_step = parser.give_me_bytecode(include_str!("gmc/step.gmc")).unwrap();
-    let gmc_draw = parser.give_me_bytecode(include_str!("gmc/draw.gmc")).unwrap();
+    let gmc_init = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/init.gmc").unwrap()).unwrap();
+    let gmc_step = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/step.gmc").unwrap()).unwrap();
+    let gmc_draw = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/draw.gmc").unwrap()).unwrap();
     
     use gammakit::Interpreter;
     use gammakit::Value;

@@ -16,7 +16,7 @@ obj Character {
         far y = 64;
         far xspeed = 1;
         far yspeed = 0;
-        far sprite = sprite_load("src/test/mychar.png", 16, 32);
+        far sprite = sprite_load("data/images/mychar.png", 16, 32);
         
         far offsets = [-16, +16, -8, +8];
         far bbox = [0,0,0,0];
@@ -28,7 +28,7 @@ obj Character {
 globalvar mychar;
 global.mychar = instance_create(Character);
 
-globalvar tile_sprite = sprite_load_with_subimages("src/test/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
+globalvar tile_sprite = sprite_load_with_subimages("data/images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
 
 obj Tile {
     def create()

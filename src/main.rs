@@ -250,20 +250,13 @@ fn main()
     {
         Value::Custom(CustomStorage{discrim, storage})
     }
-    fn match_custom(val : Value, want_discrim : u64) -> Option<u64>
+    fn match_custom(val : CustomStorage, want_discrim : u64) -> Result<u64, String>
     {
-        match val
+        if val.discrim == want_discrim
         {
-            Value::Custom(CustomStorage{discrim, storage}) =>
-            {
-                if discrim == want_discrim
-                {
-                    return Some(storage);
-                }
-            }
-            _ => ()
+            return Ok(val.storage);
         }
-        None
+        Err(format!("error: expected Custom value with discruminator {}, got {}", want_discrim, val.discrim))
     }
     use std::rc::Rc;
     use std::cell::RefCell;
@@ -311,30 +304,16 @@ fn main()
             {
                 return Err("error: expected exactly 2 arguments to sprite_load_with_subimages()".to_string());
             }
-            let filename = match args.pop_front()
-            {
-                Some(Value::Text(filename)) => filename,
-                _ => return Err("error: first argument to sprite_load_with_subimages() must be text (filename)".to_string())
-            };
-            let subimages = match args.pop_front()
-            {
-                Some(Value::Array(list)) => list,
-                _ => return Err("error: second argument to sprite_load_with_subimages() must be a list (subimages)".to_string())
-            };
+            let filename = pop_front!(args, Text)?;
+            let mut subimages = pop_front!(args, Array)?;
             
             let mut subimages_vec = Vec::new();
             
-            for subimage in subimages
+            while !subimages.is_empty()
             {
-                if let Value::Array(mut subimage) = subimage
-                {
-                    macro_rules! pop { () => { pop_front!(subimage, Number)? } }
-                    subimages_vec.push(SpriteImage::extended((pop!(), pop!()), (pop!(), pop!()), (pop!(), pop!())));
-                }
-                else
-                {
-                    return Err("error: each sub-array in array passed to sprite_load_with_subimages must consist of exactly six values that are numbers".to_string());
-                }
+                let mut subimage = pop_front!(subimages, Array)?;
+                macro_rules! pop { () => { pop_front!(subimage, Number)? } }
+                subimages_vec.push(SpriteImage::extended((pop!(), pop!()), (pop!(), pop!()), (pop!(), pop!())));
             }
             
             if subimages_vec.is_empty()
@@ -352,18 +331,10 @@ fn main()
             {
                 return Err("error: expected exactly 3 arguments to draw_sprite()".to_string());
             }
-            let sprite_index_wrapped = args.pop_front().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
-            let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
-            let x = match args.pop_front()
-            {
-                Some(Value::Number(xoffset)) => xoffset as f32,
-                _ => return Err("error: third argument to draw_sprite() must be a number (xoffset)".to_string())
-            };
-            let y = match args.pop_front()
-            {
-                Some(Value::Number(yoffset)) => yoffset as f32,
-                _ => return Err("error: fourth argument to draw_sprite() must be a number (yoffset)".to_string())
-            };
+            let sprite_index_wrapped = pop_front!(args, Custom)?;
+            let sprite_index = match_custom(sprite_index_wrapped, 0)?;
+            let x = pop_front!(args, Number)? as f32;
+            let y = pop_front!(args, Number)? as f32;
             self.draw_sprite(sprite_index, 0, x, y);
             
             Ok(Value::Number(0.0 as f64))
@@ -374,23 +345,13 @@ fn main()
             {
                 return Err("error: expected exactly 4 arguments to draw_sprite_index()".to_string());
             }
-            let sprite_index_wrapped = args.pop_front().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite_index()".to_string())?;
-            let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite_index() must be a sprite id".to_string())?;
-            let image_index = match args.pop_front()
-            {
-                Some(Value::Number(image_index)) => image_index.floor() as u64,
-                _ => return Err("error: second argument to draw_sprite_index() must be a number (image index)".to_string())
-            };
-            let x = match args.pop_front()
-            {
-                Some(Value::Number(xoffset)) => xoffset as f32,
-                _ => return Err("error: third argument to draw_sprite_index() must be a number (xoffset)".to_string())
-            };
-            let y = match args.pop_front()
-            {
-                Some(Value::Number(yoffset)) => yoffset as f32,
-                _ => return Err("error: fourth argument to draw_sprite_index() must be a number (yoffset)".to_string())
-            };
+            let sprite_index_wrapped = pop_front!(args, Custom)?;
+            let sprite_index = match_custom(sprite_index_wrapped, 0)?;
+            
+            let image_index = pop_front!(args, Number)?.floor() as u64;
+            let x = pop_front!(args, Number)? as f32;
+            let y = pop_front!(args, Number)? as f32;
+            
             self.draw_sprite(sprite_index, image_index, x, y);
             
             Ok(Value::Number(0.0 as f64))

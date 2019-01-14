@@ -294,9 +294,7 @@ fn main()
             let xoffset = pop_front!(args, Number)?;
             let yoffset = pop_front!(args, Number)?;
             
-            let sprite_index = self.load_sprite(&filename, (xoffset, yoffset));
-            
-            Ok(build_custom(0, sprite_index))
+            Ok(build_custom(0, self.load_sprite(&filename, (xoffset, yoffset))))
         }
         fn binding_sprite_load_with_subimages(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {
@@ -308,22 +306,18 @@ fn main()
             let mut subimages = pop_front!(args, Array)?;
             
             let mut subimages_vec = Vec::new();
-            
             while !subimages.is_empty()
             {
                 let mut subimage = pop_front!(subimages, Array)?;
                 macro_rules! pop { () => { pop_front!(subimage, Number)? } }
                 subimages_vec.push(SpriteImage::extended((pop!(), pop!()), (pop!(), pop!()), (pop!(), pop!())));
             }
-            
             if subimages_vec.is_empty()
             {
                 return Err("error: sprite_load_with_subimages must be given at least one subimage".to_string());
             }
             
-            let sprite_index = self.load_sprite_with_subimages(&filename, subimages_vec);
-            
-            Ok(build_custom(0, sprite_index))
+            Ok(build_custom(0, self.load_sprite_with_subimages(&filename, subimages_vec)))
         }
         fn binding_draw_sprite(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {

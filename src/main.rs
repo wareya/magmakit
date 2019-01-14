@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{VecDeque, HashMap};
 use glium::{implement_vertex, uniform};
 use std::io::BufReader;
 use std::fs::File;
@@ -75,7 +75,7 @@ fn main()
         imageindex: u64
     }
     
-    struct Renderer {
+    struct Engine {
         sprite_index_counter: u64,
         sprites: HashMap<u64, SpriteSheet>,
         events: Vec<DrawEvent>,
@@ -90,7 +90,7 @@ fn main()
         x * std::f64::consts::PI / 360.0
     }
     
-    impl Renderer {
+    impl Engine {
         fn build_program(display : &glium::Display) -> glium::Program
         {
             let vertex_shader_src = include_str!("glsl/vertex.glsl");
@@ -112,11 +112,11 @@ fn main()
             
             (vertex_buffer, indices)
         }
-        fn load(display : glium::Display) -> Renderer
+        fn load(display : glium::Display) -> Engine
         {
-            let program = Renderer::build_program(&display);
-            let (vertex_buffer, indices) = Renderer::build_vertex_buffer(&display);
-            Renderer{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
+            let program = Engine::build_program(&display);
+            let (vertex_buffer, indices) = Engine::build_vertex_buffer(&display);
+            Engine{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
         }
         
         fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
@@ -236,7 +236,7 @@ fn main()
         }
     }
     
-    let renderer = Rc::new(RefCell::new(Renderer::load(display)));
+    let engine = Rc::new(RefCell::new(Engine::load(display)));
     
     let mut parser = gammakit::Parser::new_from_default().unwrap();
     let gmc_init = parser.give_me_bytecode(include_str!("gmc/init.gmc")).unwrap();
@@ -272,47 +272,51 @@ fn main()
     
     interpreter.insert_default_bindings();
     
-    type RendererBinding = Fn(&mut Renderer, Vec<Value>) -> Result<Value, String>;
+    type EngineBinding = Fn(&mut Engine, VecDeque<Value>) -> Result<Value, String>;
     
-    impl Renderer {
-        fn binding_sprite_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    macro_rules! pop_front { ( $list:expr, $type:ident )  =>
+    {
+        if $list.is_empty()
+        {
+            Err(format!("error: failed to get value in binding"))
+        }
+        else
+        {
+            match $list.remove(0)
+            {
+                Some(Value::$type(val)) => Ok(val),
+                _ => Err(format!("error: given value had wrong type in binding"))
+            }
+        }
+    } }
+    
+    impl Engine {
+        fn binding_sprite_load(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
                 return Err("error: expected exactly 3 arguments to sprite_load()".to_string());
             }
-            let filename = match args.pop()
-            {
-                Some(Value::Text(filename)) => filename,
-                _ => return Err("error: first argument to sprite_load() must be text (filename)".to_string())
-            };
-            let xoffset = match args.pop()
-            {
-                Some(Value::Number(xoffset)) => xoffset,
-                _ => return Err("error: second argument to sprite_load() must be a number (xoffset)".to_string())
-            };
-            let yoffset = match args.pop()
-            {
-                Some(Value::Number(yoffset)) => yoffset,
-                _ => return Err("error: third argument to sprite_load() must be a number (yoffset)".to_string())
-            };
+            let filename = pop_front!(args, Text)?;
+            let xoffset = pop_front!(args, Number)?;
+            let yoffset = pop_front!(args, Number)?;
             
             let sprite_index = self.load_sprite(&filename, (xoffset, yoffset));
             
             Ok(build_custom(0, sprite_index))
         }
-        fn binding_sprite_load_with_subimages(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+        fn binding_sprite_load_with_subimages(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {
             if args.len() != 2
             {
                 return Err("error: expected exactly 2 arguments to sprite_load_with_subimages()".to_string());
             }
-            let filename = match args.pop()
+            let filename = match args.pop_front()
             {
                 Some(Value::Text(filename)) => filename,
                 _ => return Err("error: first argument to sprite_load_with_subimages() must be text (filename)".to_string())
             };
-            let subimages = match args.pop()
+            let subimages = match args.pop_front()
             {
                 Some(Value::Array(list)) => list,
                 _ => return Err("error: second argument to sprite_load_with_subimages() must be a list (subimages)".to_string())
@@ -324,14 +328,7 @@ fn main()
             {
                 if let Value::Array(mut subimage) = subimage
                 {
-                    macro_rules! pop { ( )  =>
-                    {
-                        match subimage.pop_front()
-                        {
-                            Some(Value::Number(val)) => val,
-                            _ => return Err("error: each sub-array in array passed to sprite_load_with_subimages must consist of exactly six values that are numbers".to_string())
-                        }
-                    } }
+                    macro_rules! pop { () => { pop_front!(subimage, Number)? } }
                     subimages_vec.push(SpriteImage::extended((pop!(), pop!()), (pop!(), pop!()), (pop!(), pop!())));
                 }
                 else
@@ -349,20 +346,20 @@ fn main()
             
             Ok(build_custom(0, sprite_index))
         }
-        fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+        fn binding_draw_sprite(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {
             if args.len() != 3
             {
                 return Err("error: expected exactly 3 arguments to draw_sprite()".to_string());
             }
-            let sprite_index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
+            let sprite_index_wrapped = args.pop_front().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
             let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
-            let x = match args.pop()
+            let x = match args.pop_front()
             {
                 Some(Value::Number(xoffset)) => xoffset as f32,
                 _ => return Err("error: third argument to draw_sprite() must be a number (xoffset)".to_string())
             };
-            let y = match args.pop()
+            let y = match args.pop_front()
             {
                 Some(Value::Number(yoffset)) => yoffset as f32,
                 _ => return Err("error: fourth argument to draw_sprite() must be a number (yoffset)".to_string())
@@ -371,25 +368,25 @@ fn main()
             
             Ok(Value::Number(0.0 as f64))
         }
-        fn binding_draw_sprite_index(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+        fn binding_draw_sprite_index(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
         {
             if args.len() != 4
             {
                 return Err("error: expected exactly 4 arguments to draw_sprite_index()".to_string());
             }
-            let sprite_index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite_index()".to_string())?;
+            let sprite_index_wrapped = args.pop_front().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite_index()".to_string())?;
             let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite_index() must be a sprite id".to_string())?;
-            let image_index = match args.pop()
+            let image_index = match args.pop_front()
             {
                 Some(Value::Number(image_index)) => image_index.floor() as u64,
                 _ => return Err("error: second argument to draw_sprite_index() must be a number (image index)".to_string())
             };
-            let x = match args.pop()
+            let x = match args.pop_front()
             {
                 Some(Value::Number(xoffset)) => xoffset as f32,
                 _ => return Err("error: third argument to draw_sprite_index() must be a number (xoffset)".to_string())
             };
-            let y = match args.pop()
+            let y = match args.pop_front()
             {
                 Some(Value::Number(yoffset)) => yoffset as f32,
                 _ => return Err("error: fourth argument to draw_sprite_index() must be a number (yoffset)".to_string())
@@ -399,22 +396,22 @@ fn main()
             Ok(Value::Number(0.0 as f64))
         }
         // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
-        fn insert_binding(interpreter : &mut Interpreter, renderer : &Rc<RefCell<Renderer>>, name : &'static str, func : &'static RendererBinding)
+        fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
         {
-            let renderer_ref = Rc::clone(&renderer);
-            interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : Vec<Value>| -> Result<Value, String>
+            let engine_ref = Rc::clone(&engine);
+            interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : VecDeque<Value>| -> Result<Value, String>
             {
-                let mut renderer = renderer_ref.try_borrow_mut().or_else(|_| Err(format!("error: failed to lock renderer in {}()", name)))?;
+                let mut engine = engine_ref.try_borrow_mut().or_else(|_| Err(format!("error: failed to lock engine in {}()", name)))?;
                 
-                func(&mut *renderer, args)
+                func(&mut *engine, args)
             })));
         }
     };
     
-    Renderer::insert_binding(&mut interpreter, &renderer, "sprite_load", &Renderer::binding_sprite_load);
-    Renderer::insert_binding(&mut interpreter, &renderer, "sprite_load_with_subimages", &Renderer::binding_sprite_load_with_subimages);
-    Renderer::insert_binding(&mut interpreter, &renderer, "draw_sprite", &Renderer::binding_draw_sprite);
-    Renderer::insert_binding(&mut interpreter, &renderer, "draw_sprite_index", &Renderer::binding_draw_sprite_index);
+    Engine::insert_binding(&mut interpreter, &engine, "sprite_load", &Engine::binding_sprite_load);
+    Engine::insert_binding(&mut interpreter, &engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
+    Engine::insert_binding(&mut interpreter, &engine, "draw_sprite", &Engine::binding_draw_sprite);
+    Engine::insert_binding(&mut interpreter, &engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
     
     
     fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
@@ -445,9 +442,9 @@ fn main()
         err_none_or_panic!(interpreter.restart(&gmc_draw));
         step_until_end_maybe_panic(&mut interpreter);
         
-        if let Ok(mut renderer) = renderer.try_borrow_mut()
+        if let Ok(mut engine) = engine.try_borrow_mut()
         {
-            renderer.render();
+            engine.render();
             
             events_loop.poll_events(|event|
             {
@@ -464,7 +461,7 @@ fn main()
         }
         else
         {
-            panic!("error: failed to lock renderer in mainloop");
+            panic!("error: failed to lock engine in mainloop");
         }
         
         let elapsed = frame_start.elapsed();

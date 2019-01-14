@@ -47,27 +47,33 @@ fn main()
     
     implement_vertex!(Vertex, position);
     
-    /*
-    struct Image {
+    struct SpriteImage {
         origin: (f64, f64),
         topleft: (f64, f64),
-        topright: (f64, f64),
+        bottomright: (f64, f64),
     }
-    */
     
-    struct Sprite {
-        origin: (f64, f64),
+    impl SpriteImage {
+        fn basic (origin: (f64, f64), tex : &SrgbTexture2d) -> SpriteImage
+        {
+            SpriteImage{origin, topleft: (0.0, 0.0), bottomright: (tex.width() as f64, tex.height() as f64)}
+        }
+    }
+    
+    struct SpriteSheet {
+        images: Vec<SpriteImage>,
         texture: SrgbTexture2d,
     }
     
     struct DrawEvent {
         matrix: [[f32; 4]; 4],
-        sprite: u64
+        spritesheet: u64,
+        imageindex: u64
     }
     
     struct Renderer {
         sprite_index_counter: u64,
-        sprites: HashMap<u64, Sprite>,
+        sprites: HashMap<u64, SpriteSheet>,
         events: Vec<DrawEvent>,
         display: glium::Display,
         vertex_buffer: glium::VertexBuffer<Vertex>,
@@ -81,7 +87,15 @@ fn main()
     }
     
     impl Renderer {
-        fn build_program(display : &glium::Display) -> (glium::VertexBuffer<Vertex>, glium::index::NoIndices, glium::Program)
+        fn build_program(display : &glium::Display) -> glium::Program
+        {
+            let vertex_shader_src = include_str!("glsl/vertex.glsl");
+            let fragment_shader_src = include_str!("glsl/fragment.glsl");
+            let program = glium::Program::from_source(display, vertex_shader_src, fragment_shader_src, None).unwrap();
+            
+            program
+        }
+        fn build_vertex_buffer(display : &glium::Display) -> (glium::VertexBuffer<Vertex>, glium::index::NoIndices)
         {
             let vertex1 = Vertex { position: [0.0, 0.0] };
             let vertex2 = Vertex { position: [0.0, 1.0] };
@@ -92,15 +106,12 @@ fn main()
             let vertex_buffer = glium::VertexBuffer::new(display, &shape).unwrap();
             let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip);
             
-            let vertex_shader_src = include_str!("glsl/vertex.glsl");
-            let fragment_shader_src = include_str!("glsl/fragment.glsl");
-            let program = glium::Program::from_source(display, vertex_shader_src, fragment_shader_src, None).unwrap();
-            
-            (vertex_buffer, indices, program)
+            (vertex_buffer, indices)
         }
         fn load(display : glium::Display) -> Renderer
         {
-            let (vertex_buffer, indices, program) = Renderer::build_program(&display);
+            let program = Renderer::build_program(&display);
+            let (vertex_buffer, indices) = Renderer::build_vertex_buffer(&display);
             Renderer{sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, program}
         }
         
@@ -112,30 +123,26 @@ fn main()
             let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
             let texture = SrgbTexture2d::new(&self.display, image).unwrap();
             
-            self.sprites.insert(index, Sprite{origin, texture});
+            self.sprites.insert(index, SpriteSheet{images: vec!(SpriteImage::basic(origin, &texture)), texture});
             
             self.sprite_index_counter += 1;
             index
         }
         
-        fn draw_sprite(&mut self, spriteindex : u64, x : f32, y : f32)
+        fn draw_sprite(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32)
         {
-            self.draw_sprite_scaled(spriteindex, x, y, 1.0, 1.0)
+            self.draw_sprite_scaled(spriteindex, imageindex, x, y, 1.0, 1.0)
         }
-        fn draw_sprite_scaled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
+        fn draw_sprite_scaled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
         {
-            self.draw_sprite_angled(spriteindex, x, y, xscale, yscale, 0.0)
+            self.draw_sprite_angled(spriteindex, imageindex, x, y, xscale, yscale, 0.0)
         }
-        fn draw_sprite_angled(&mut self, spriteindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+        fn draw_sprite_angled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
         {
             let angle_radians = deg2rad(angle as f64);
             let angle_cos = angle_radians.cos() as f32;
             let angle_sin = angle_radians.sin() as f32;
-            let sprite = self.sprites.get(&spriteindex).unwrap();
-            let x_dim = sprite.texture.dimensions().0 as f32;
-            let y_dim = sprite.texture.dimensions().1 as f32;
-            let xorigin = sprite.origin.0 as f32;
-            let yorigin = sprite.origin.1 as f32;
+            
             let matrix_pos = [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
@@ -148,20 +155,14 @@ fn main()
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ];
-            let matrix_origin = [
-                [x_dim, 0.0, 0.0, 0.0],
-                [0.0, -y_dim, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [-xorigin, yorigin, 0.0, 1.0],
-            ];
-            let mut matrix = m4mult(&matrix_pos, &matrix_rotscale);
-            matrix = m4mult(&matrix, &matrix_origin);
             
-            self.draw_sprite_transformed(spriteindex, matrix)
+            let matrix = m4mult(&matrix_pos, &matrix_rotscale);
+            
+            self.draw_sprite_transformed(spriteindex, imageindex, matrix)
         }
-        fn draw_sprite_transformed(&mut self, spriteindex : u64, matrix : [[f32; 4]; 4])
+        fn draw_sprite_transformed(&mut self, spriteindex : u64, imageindex : u64, matrix : [[f32; 4]; 4])
         {
-            self.events.push(DrawEvent{matrix, sprite : spriteindex})
+            self.events.push(DrawEvent{matrix, spritesheet : spriteindex, imageindex : imageindex})
         }
         
         fn render(&mut self)
@@ -183,12 +184,34 @@ fn main()
             
             for event in self.events.drain(..)
             {
-                let texture = &self.sprites.get(&event.sprite).unwrap().texture;
+                let spritesheet = self.sprites.get(&event.spritesheet).unwrap();
+                let texture = &spritesheet.texture;
+                
+                let tex_w = texture.width() as f32;
+                let tex_h = texture.height() as f32;
+                
+                let image = spritesheet.images.get(event.imageindex as usize % spritesheet.images.len()).unwrap();
+                let x_dim = (image.bottomright.0 - image.topleft.0) as f32;
+                let y_dim = (image.bottomright.1 - image.topleft.1) as f32;
+                let xorigin = (image.origin.0 - image.topleft.0) as f32;
+                let yorigin = (image.origin.1 - image.topleft.1) as f32;
+                
+                let matrix_origin = [
+                    [x_dim, 0.0, 0.0, 0.0],
+                    [0.0, -y_dim, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [-xorigin, yorigin, 0.0, 1.0],
+                ];
+                let matrix_command = m4mult(&event.matrix, &matrix_origin);
+                
                 let uniforms = uniform! {
-                    matrix_view: matrix_view,
-                    matrix_command: event.matrix,
-                    tex: Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
+                    matrix_view : matrix_view,
+                    matrix_command : matrix_command,
+                    tex_topleft : [image.topleft.0 as f32 / tex_w, image.topleft.1 as f32 / tex_h],
+                    tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
+                    tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
                 };
+                println!("debug: {:?} {:?}", image.topleft, image.bottomright);
                 target.draw(&self.vertex_buffer, &self.indices, &self.program, &uniforms, &Default::default()).unwrap();
             }
             
@@ -239,7 +262,7 @@ fn main()
         {
             if args.len() != 3
             {
-                return Err("error: expected exactly three arguments to sprite_load()".to_string());
+                return Err("error: expected exactly 4 arguments to sprite_load()".to_string());
             }
             let filename = match args.pop()
             {
@@ -263,27 +286,32 @@ fn main()
         }
         fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
         {
-            if args.len() != 3
+            if args.len() != 4
             {
-                return Err("error: expected exactly three arguments to sprite_load()".to_string());
+                return Err("error: expected exactly 5 arguments to draw_sprite()".to_string());
             }
-            let index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
-            let index = match_custom(index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
+            let sprite_index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
+            let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
+            let image_index = match args.pop()
+            {
+                Some(Value::Number(image_index)) => image_index as u64,
+                _ => return Err("error: second argument to draw_sprite() must be a number (image index)".to_string())
+            };
             let x = match args.pop()
             {
                 Some(Value::Number(xoffset)) => xoffset as f32,
-                _ => return Err("error: second argument to draw_sprite() must be a number (xoffset)".to_string())
+                _ => return Err("error: third argument to draw_sprite() must be a number (xoffset)".to_string())
             };
             let y = match args.pop()
             {
                 Some(Value::Number(yoffset)) => yoffset as f32,
-                _ => return Err("error: third argument to draw_sprite() must be a number (yoffset)".to_string())
+                _ => return Err("error: fourth argument to draw_sprite() must be a number (yoffset)".to_string())
             };
-            self.draw_sprite(index, x, y);
+            self.draw_sprite(sprite_index, image_index, x, y);
             
             Ok(Value::Number(0.0 as f64))
         }
-        // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a way of passing it around without copying it.
+        // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
         fn insert_binding(interpreter : &mut Interpreter, renderer : &Rc<RefCell<Renderer>>, name : &'static str, func : &'static RendererBinding)
         {
             let renderer_ref = Rc::clone(&renderer);

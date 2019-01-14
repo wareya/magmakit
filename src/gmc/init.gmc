@@ -28,7 +28,7 @@ obj Character {
 globalvar mychar;
 global.mychar = instance_create(Character);
 
-globalvar tile_sprite = sprite_load("src/test/tile.png", 16, 16);
+globalvar tile_sprite = sprite_load_with_subimages("src/test/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
 
 obj Tile {
     def create()

@@ -54,9 +54,13 @@ fn main()
     }
     
     impl SpriteImage {
-        fn basic (origin: (f64, f64), tex : &SrgbTexture2d) -> SpriteImage
+        fn basic(origin: (f64, f64), tex : &SrgbTexture2d) -> SpriteImage
         {
             SpriteImage{origin, topleft: (0.0, 0.0), bottomright: (tex.width() as f64, tex.height() as f64)}
+        }
+        fn extended(origin: (f64, f64), topleft: (f64, f64), bottomright : (f64, f64)) -> SpriteImage
+        {
+            SpriteImage{origin, topleft, bottomright}
         }
     }
     
@@ -129,6 +133,20 @@ fn main()
             index
         }
         
+        fn load_sprite_with_subimages(&mut self, fname : &str, images : Vec<SpriteImage>) -> u64
+        {
+            let index = self.sprite_index_counter;
+            let image = image::load(BufReader::new(File::open(fname).unwrap()), image::ImageFormat::PNG).unwrap().to_rgba();
+            let image_dimensions = image.dimensions();
+            let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
+            let texture = SrgbTexture2d::new(&self.display, image).unwrap();
+            
+            self.sprites.insert(index, SpriteSheet{images, texture});
+            
+            self.sprite_index_counter += 1;
+            index
+        }
+        
         fn draw_sprite(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32)
         {
             self.draw_sprite_scaled(spriteindex, imageindex, x, y, 1.0, 1.0)
@@ -193,8 +211,8 @@ fn main()
                 let image = spritesheet.images.get(event.imageindex as usize % spritesheet.images.len()).unwrap();
                 let x_dim = (image.bottomright.0 - image.topleft.0) as f32;
                 let y_dim = (image.bottomright.1 - image.topleft.1) as f32;
-                let xorigin = (image.origin.0 - image.topleft.0) as f32;
-                let yorigin = (image.origin.1 - image.topleft.1) as f32;
+                let xorigin = (image.origin.0) as f32;
+                let yorigin = (image.origin.1) as f32;
                 
                 let matrix_origin = [
                     [x_dim, 0.0, 0.0, 0.0],
@@ -211,7 +229,6 @@ fn main()
                     tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
                     tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
                 };
-                println!("debug: {:?} {:?}", image.topleft, image.bottomright);
                 target.draw(&self.vertex_buffer, &self.indices, &self.program, &uniforms, &Default::default()).unwrap();
             }
             
@@ -262,7 +279,7 @@ fn main()
         {
             if args.len() != 3
             {
-                return Err("error: expected exactly 4 arguments to sprite_load()".to_string());
+                return Err("error: expected exactly 3 arguments to sprite_load()".to_string());
             }
             let filename = match args.pop()
             {
@@ -284,19 +301,62 @@ fn main()
             
             Ok(build_custom(0, sprite_index))
         }
+        fn binding_sprite_load_with_subimages(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+        {
+            if args.len() != 2
+            {
+                return Err("error: expected exactly 2 arguments to sprite_load_with_subimages()".to_string());
+            }
+            let filename = match args.pop()
+            {
+                Some(Value::Text(filename)) => filename,
+                _ => return Err("error: first argument to sprite_load_with_subimages() must be text (filename)".to_string())
+            };
+            let subimages = match args.pop()
+            {
+                Some(Value::Array(list)) => list,
+                _ => return Err("error: second argument to sprite_load_with_subimages() must be a list (subimages)".to_string())
+            };
+            
+            let mut subimages_vec = Vec::new();
+            
+            for subimage in subimages
+            {
+                if let Value::Array(mut subimage) = subimage
+                {
+                    macro_rules! pop { ( )  =>
+                    {
+                        match subimage.pop_front()
+                        {
+                            Some(Value::Number(val)) => val,
+                            _ => return Err("error: each sub-array in array passed to sprite_load_with_subimages must consist of exactly six values that are numbers".to_string())
+                        }
+                    } }
+                    subimages_vec.push(SpriteImage::extended((pop!(), pop!()), (pop!(), pop!()), (pop!(), pop!())));
+                }
+                else
+                {
+                    return Err("error: each sub-array in array passed to sprite_load_with_subimages must consist of exactly six values that are numbers".to_string());
+                }
+            }
+            
+            if subimages_vec.is_empty()
+            {
+                return Err("error: sprite_load_with_subimages must be given at least one subimage".to_string());
+            }
+            
+            let sprite_index = self.load_sprite_with_subimages(&filename, subimages_vec);
+            
+            Ok(build_custom(0, sprite_index))
+        }
         fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
         {
-            if args.len() != 4
+            if args.len() != 3
             {
-                return Err("error: expected exactly 5 arguments to draw_sprite()".to_string());
+                return Err("error: expected exactly 3 arguments to draw_sprite()".to_string());
             }
             let sprite_index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite()".to_string())?;
             let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite() must be a sprite id".to_string())?;
-            let image_index = match args.pop()
-            {
-                Some(Value::Number(image_index)) => image_index as u64,
-                _ => return Err("error: second argument to draw_sprite() must be a number (image index)".to_string())
-            };
             let x = match args.pop()
             {
                 Some(Value::Number(xoffset)) => xoffset as f32,
@@ -306,6 +366,33 @@ fn main()
             {
                 Some(Value::Number(yoffset)) => yoffset as f32,
                 _ => return Err("error: fourth argument to draw_sprite() must be a number (yoffset)".to_string())
+            };
+            self.draw_sprite(sprite_index, 0, x, y);
+            
+            Ok(Value::Number(0.0 as f64))
+        }
+        fn binding_draw_sprite_index(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+        {
+            if args.len() != 4
+            {
+                return Err("error: expected exactly 4 arguments to draw_sprite_index()".to_string());
+            }
+            let sprite_index_wrapped = args.pop().ok_or_else(|| "unreachable error: couldn't find first argument to draw_sprite_index()".to_string())?;
+            let sprite_index = match_custom(sprite_index_wrapped, 0).ok_or_else(|| "error: first argument to draw_sprite_index() must be a sprite id".to_string())?;
+            let image_index = match args.pop()
+            {
+                Some(Value::Number(image_index)) => image_index.floor() as u64,
+                _ => return Err("error: second argument to draw_sprite_index() must be a number (image index)".to_string())
+            };
+            let x = match args.pop()
+            {
+                Some(Value::Number(xoffset)) => xoffset as f32,
+                _ => return Err("error: third argument to draw_sprite_index() must be a number (xoffset)".to_string())
+            };
+            let y = match args.pop()
+            {
+                Some(Value::Number(yoffset)) => yoffset as f32,
+                _ => return Err("error: fourth argument to draw_sprite_index() must be a number (yoffset)".to_string())
             };
             self.draw_sprite(sprite_index, image_index, x, y);
             
@@ -325,7 +412,9 @@ fn main()
     };
     
     Renderer::insert_binding(&mut interpreter, &renderer, "sprite_load", &Renderer::binding_sprite_load);
+    Renderer::insert_binding(&mut interpreter, &renderer, "sprite_load_with_subimages", &Renderer::binding_sprite_load_with_subimages);
     Renderer::insert_binding(&mut interpreter, &renderer, "draw_sprite", &Renderer::binding_draw_sprite);
+    Renderer::insert_binding(&mut interpreter, &renderer, "draw_sprite_index", &Renderer::binding_draw_sprite_index);
     
     
     fn step_until_end_maybe_panic(interpreter : &mut Interpreter)

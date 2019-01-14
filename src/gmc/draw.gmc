@@ -1,9 +1,9 @@
 with(Character)
 {
-    draw_sprite(sprite, 0, x, y);
+    draw_sprite(sprite, x, y);
 }
 
 with(Tile)
 {
-    draw_sprite(sprite, 0, x, y);
+    draw_sprite_index(sprite, x/32, x, y);
 }

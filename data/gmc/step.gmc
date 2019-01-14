@@ -22,14 +22,34 @@ subdef touching_tile()
 
 with(Character)
 {
-    yspeed += 0.03;
+    yspeed += global.gravity/2;
+    
+    if(key_pressed("E"))
+        want_to_jump = true;
+    else if(key_released("E"))
+        want_to_jump = false;
+    
+    if(want_to_jump)
+    {
+        yspeed = -jump_velocity;
+        want_to_jump = false;
+    }
+    
+    if(key_pressed("W"))
+        x_wish = -1;
+    else if(key_pressed("F"))
+        x_wish = 1;
+    else if(key_down("W") and !key_down("F"))
+        x_wish = -1;
+    else if(key_down("F") and !key_down("W"))
+        x_wish = 1;
+    else if(!key_down("W") and !key_down("F"))
+        x_wish = 0;
+    
+    xspeed = x_wish;
     
     x += xspeed;
     y += yspeed;
-    if(x > 500 and xspeed > 0)
-        xspeed = -xspeed;
-    if(x < 10 and xspeed < 0)
-        xspeed = -xspeed;
     
     var touching = touching_tile();
     while(touching != 0)
@@ -41,5 +61,5 @@ with(Character)
         touching = touching_tile();
     }
     
-    yspeed += 0.03;
+    yspeed += global.gravity/2;
 }

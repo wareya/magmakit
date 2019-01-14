@@ -123,12 +123,171 @@ fn main()
         imageindex: u64
     }
     
+    struct InputHandler {
+        keys_down_previous: HashMap<String, bool>,
+        keys_down: HashMap<String, bool>,
+        mouse_pos: (f64, f64),
+        mouse_delta: (f64, f64),
+        mouse_buttons: [bool; 5],
+    }
+    
+    impl InputHandler {
+        fn new() -> InputHandler
+        {
+            InputHandler{keys_down : HashMap::new(), keys_down_previous : HashMap::new(), mouse_pos: (0.0, 0.0), mouse_delta: (0.0, 0.0), mouse_buttons: [false, false, false, false, false]}
+        }
+        fn keyevent(&mut self, event : glutin::KeyboardInput)
+        {
+            if let Some(key) = event.virtual_keycode
+            {
+                use glium::glutin::VirtualKeyCode::*;
+                let keystr = match key
+                {
+                    // esc
+                    Escape => "Esc",
+                    
+                    // number row
+                    Key0 => "0",
+                    Key1 => "1",
+                    Key2 => "2",
+                    Key3 => "3",
+                    Key4 => "4",
+                    Key5 => "5",
+                    Key6 => "6",
+                    Key7 => "7",
+                    Key8 => "8",
+                    Key9 => "9",
+                    
+                    // letters
+                    A => "A",
+                    B => "B",
+                    C => "C",
+                    D => "D",
+                    E => "E",
+                    F => "F",
+                    G => "G",
+                    H => "H",
+                    I => "I",
+                    J => "J",
+                    K => "K",
+                    L => "L",
+                    M => "M",
+                    N => "N",
+                    O => "O",
+                    P => "P",
+                    Q => "Q",
+                    R => "R",
+                    S => "S",
+                    T => "T",
+                    U => "U",
+                    V => "V",
+                    W => "W",
+                    X => "X",
+                    Y => "Y",
+                    Z => "Z",
+                    
+                    // navigation block (bottom)
+                    Left => "Left",
+                    Up => "Up",
+                    Right => "Right",
+                    Down => "Down",
+                    
+                    // typographic control
+                    Back => "Backspace",
+                    Return => "Enter",
+                    Space => "Space",
+                    Tab => "Tab",
+                    
+                    // punctuation
+                    Grave => "`",
+                    
+                    Minus => "-",
+                    Equals => "=",
+                    
+                    LBracket => "[",
+                    RBracket => "]",
+                    Backslash => "\\",
+                    
+                    Semicolon => ";",
+                    Apostrophe => "'",
+                    
+                    Comma => ",",
+                    Period => ".",
+                    Slash => "/",
+                    
+                    // navigation block (top)
+                    Scroll => "ScollLock",
+                    Pause => "Pause",
+                    Insert => "Insert",
+                    Delete => "Delete",
+                    Home => "Home",
+                    End => "End",
+                    PageUp => "PageUp",
+                    PageDown => "PageDown",
+                    
+                    // modifiers
+                    LAlt => "LAlt",
+                    LShift => "LShift",
+                    LControl => "LControl",
+                    RAlt => "RAlt",
+                    RShift => "RShift",
+                    RControl => "RControl",
+                    
+                    // numpad
+                    Numpad0 => "Numpad0",
+                    Numpad1 => "Numpad1",
+                    Numpad2 => "Numpad2",
+                    Numpad3 => "Numpad3",
+                    Numpad4 => "Numpad4",
+                    Numpad5 => "Numpad5",
+                    Numpad6 => "Numpad6",
+                    Numpad7 => "Numpad7",
+                    Numpad8 => "Numpad8",
+                    Numpad9 => "Numpad9",
+                    
+                    Divide => "Numpad/",
+                    Multiply => "Numpad*",
+                    Subtract => "Numpad-",
+                    Add => "Numpad+",
+                    Decimal => "Numpad.",
+                    
+                    // functions
+                    F1 => "F1",
+                    F2 => "F2",
+                    F3 => "F3",
+                    F4 => "F4",
+                    F5 => "F5",
+                    F6 => "F6",
+                    F7 => "F7",
+                    F8 => "F8",
+                    F9 => "F9",
+                    F10 => "F10",
+                    F11 => "F11",
+                    F12 => "F12",
+                    
+                    // unsupported
+                    _ => ""
+                };
+                if keystr != ""
+                {
+                    self.keys_down.insert(keystr.to_string(), event.state == glutin::ElementState::Pressed);
+                }
+            }
+        }
+        fn cycle(&mut self)
+        {
+            self.keys_down_previous = self.keys_down.clone();
+        }
+    }
+    
     struct Engine {
         program_path: String,
         
+        input_handler: InputHandler,
+        
         sprite_index_counter: u64,
         sprites: HashMap<u64, SpriteSheet>,
-        events: Vec<DrawEvent>,
+        draw_events: Vec<DrawEvent>,
         
         display: glium::Display,
         
@@ -168,7 +327,7 @@ fn main()
         {
             let glprogram = Engine::build_glprogram(&display, &program_path);
             let (vertex_buffer, indices) = Engine::build_vertex_buffer(&display);
-            Engine{program_path, sprite_index_counter : 1, sprites : HashMap::new(), events : Vec::new(), display, vertex_buffer, indices, glprogram}
+            Engine{program_path, input_handler : InputHandler::new(), sprite_index_counter : 1, sprites : HashMap::new(), draw_events : Vec::new(), display, vertex_buffer, indices, glprogram}
         }
         
         fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
@@ -232,7 +391,7 @@ fn main()
         }
         fn draw_sprite_transformed(&mut self, spriteindex : u64, imageindex : u64, matrix : [[f32; 4]; 4])
         {
-            self.events.push(DrawEvent{matrix, spritesheet : spriteindex, imageindex : imageindex})
+            self.draw_events.push(DrawEvent{matrix, spritesheet : spriteindex, imageindex : imageindex})
         }
         
         fn render(&mut self)
@@ -252,7 +411,7 @@ fn main()
                 [-1.0, 1.0, 0.0, 1.0f32],
             ];
             
-            for event in self.events.drain(..)
+            for event in self.draw_events.drain(..)
             {
                 let spritesheet = self.sprites.get(&event.spritesheet).unwrap();
                 let texture = &spritesheet.texture;
@@ -402,6 +561,38 @@ fn main()
             
             Ok(Value::Number(0.0 as f64))
         }
+        fn binding_key_down(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+        {
+            if args.len() != 1
+            {
+                return Err("error: expected exactly 1 arguments to key_down()".to_string());
+            }
+            let name = pop_front!(args, Text)?;
+            let down = self.input_handler.keys_down.get(&name).cloned().unwrap_or(false);
+            Ok(Value::Number(down as u32 as f64))
+        }
+        fn binding_key_pressed(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+        {
+            if args.len() != 1
+            {
+                return Err("error: expected exactly 1 arguments to key_pressed()".to_string());
+            }
+            let name = pop_front!(args, Text)?;
+            let down = self.input_handler.keys_down.get(&name).cloned().unwrap_or(false);
+            let down_previous = self.input_handler.keys_down_previous.get(&name).cloned().unwrap_or(false);
+            Ok(Value::Number((down && !down_previous) as u32 as f64))
+        }
+        fn binding_key_released(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+        {
+            if args.len() != 1
+            {
+                return Err("error: expected exactly 1 arguments to key_released()".to_string());
+            }
+            let name = pop_front!(args, Text)?;
+            let down = self.input_handler.keys_down.get(&name).cloned().unwrap_or(false);
+            let down_previous = self.input_handler.keys_down_previous.get(&name).cloned().unwrap_or(false);
+            Ok(Value::Number((!down && down_previous) as u32 as f64))
+        }
         // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
         fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
         {
@@ -419,6 +610,9 @@ fn main()
     Engine::insert_binding(&mut interpreter, &engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
     Engine::insert_binding(&mut interpreter, &engine, "draw_sprite", &Engine::binding_draw_sprite);
     Engine::insert_binding(&mut interpreter, &engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
+    Engine::insert_binding(&mut interpreter, &engine, "key_down", &Engine::binding_key_down);
+    Engine::insert_binding(&mut interpreter, &engine, "key_pressed", &Engine::binding_key_pressed);
+    Engine::insert_binding(&mut interpreter, &engine, "key_released", &Engine::binding_key_released);
     
     
     fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
@@ -443,6 +637,30 @@ fn main()
     {
         let frame_start = time::Instant::now();
         
+        if let Ok(mut engine) = engine.try_borrow_mut()
+        {
+            engine.input_handler.cycle();
+            
+            events_loop.poll_events(|event|
+            {
+                use glium::glutin::{Event::WindowEvent, WindowEvent::*};
+                match event
+                {
+                    WindowEvent { event, .. } => match event
+                    {
+                        CloseRequested => closed = true,
+                        KeyboardInput{device_id : _, input : event} => engine.input_handler.keyevent(event),
+                        _ => ()
+                    },
+                    _ => (),
+                }
+            });
+        }
+        else
+        {
+            panic!("error: failed to lock engine in mainloop");
+        }
+        
         err_none_or_panic!(interpreter.restart(&gmc_step));
         step_until_end_maybe_panic(&mut interpreter);
         
@@ -452,19 +670,6 @@ fn main()
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
             engine.render();
-            
-            events_loop.poll_events(|event|
-            {
-                match event
-                {
-                    glutin::Event::WindowEvent { event, .. } => match event
-                    {
-                        glutin::WindowEvent::CloseRequested => closed = true,
-                        _ => ()
-                    },
-                    _ => (),
-                }
-            });
         }
         else
         {

@@ -5,7 +5,7 @@ subdef find_shortest_trace()
     with (Tile)
     {
         var trace = entity_trace_with_margin(other, self, travel);
-        if(trace != 0.0 and (shortest == 0.0 or trace["sqdist"] < shortest["sqdist"]))
+        if(trace != 0 and (shortest == 0 or trace["sqdist"] < shortest["sqdist"]))
             shortest = trace;
     }
     
@@ -97,24 +97,6 @@ with(Character)
     }
     
     solve_movement([xspeed, yspeed]);
-    
-    /*
-    x += xspeed;
-    y += yspeed;
-    */
-    
-    /*
-    var touching = touching_tile();
-    while(touching != 0)
-    {
-        yspeed = 0;
-        y -= bbox[1] - touching.bbox[0];
-        y -= 0.01;
-        
-        touching = touching_tile();
-    }
-    */
-    
     
     yspeed += global.gravity/2;
 }

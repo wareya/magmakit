@@ -24,16 +24,12 @@ with(Character)
 {
     yspeed += global.gravity/2;
     
+    
     if(key_pressed("E"))
         want_to_jump = true;
     else if(key_released("E"))
         want_to_jump = false;
     
-    if(want_to_jump)
-    {
-        yspeed = -jump_velocity;
-        want_to_jump = false;
-    }
     
     if(key_pressed("W"))
         x_wish = -1;
@@ -46,10 +42,34 @@ with(Character)
     else if(!key_down("W") and !key_down("F"))
         x_wish = 0;
     
-    xspeed = x_wish;
+    
+    if(want_to_jump)
+    {
+        yspeed = -jump_velocity;
+        want_to_jump = false;
+    }
+    
+    xspeed *= drag;
+    if(x_wish != 0)
+    {
+        xspeed += x_wish*accel;
+        if(abs(xspeed) > maxspeed)
+        {
+            xspeed = maxspeed * sign(xspeed);
+        }
+    }
+    else
+    {
+        var oldsign = sign(xspeed);
+        xspeed -= oldsign*deaccel;
+        if(sign(xspeed) != oldsign)
+            xspeed = 0;
+    }
+    
     
     x += xspeed;
     y += yspeed;
+    
     
     var touching = touching_tile();
     while(touching != 0)
@@ -60,6 +80,7 @@ with(Character)
         
         touching = touching_tile();
     }
+    
     
     yspeed += global.gravity/2;
 }

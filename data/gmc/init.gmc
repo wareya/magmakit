@@ -9,6 +9,21 @@ globaldef update_bbox(inst)
     }
 }
 
+globaldef abs(x)
+{
+    if(x > 0)
+        return x;
+    return -x;
+}
+globaldef sign(x)
+{
+    if(x > 0)
+        return 1;
+    if(x < 0)
+        return -1;
+    return 0;
+}
+
 obj Character {
     def create()
     {
@@ -19,6 +34,10 @@ obj Character {
         far want_to_jump = false;
         far x_wish = 0;
         
+        far accel = 0.125;
+        far deaccel = 0.05;
+        far drag = 0.95;
+        far maxspeed = 1.75;
         far jump_velocity = 2.5;
         
         far sprite = sprite_load("data/images/mychar.png", 16, 32);

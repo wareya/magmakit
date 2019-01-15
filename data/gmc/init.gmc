@@ -2,10 +2,10 @@ globaldef update_bbox(inst)
 {
     with(inst)
     {
-        bbox[0] = offsets[0] + y;
+        bbox[0] = offsets[0] + x;
         bbox[1] = offsets[1] + y;
         bbox[2] = offsets[2] + x;
-        bbox[3] = offsets[3] + x;
+        bbox[3] = offsets[3] + y;
     }
 }
 
@@ -22,6 +22,201 @@ globaldef sign(x)
     if(x < 0)
         return -1;
     return 0;
+}
+
+globaldef aabb_overlap(bbox1, bbox2)
+{
+    if(bbox1[1] > bbox2[0]
+        and bbox1[0] < bbox2[1]
+        and bbox1[3] > bbox2[2]
+        and bbox1[2] < bbox2[3])
+        return true;
+}
+globaldef entity_overlap(mover, static)
+{
+    if(mover.bbox[1] > static.bbox[0]
+        and mover.bbox[0] < static.bbox[1]
+        and mover.bbox[3] > static.bbox[2]
+        and mover.bbox[2] < static.bbox[3])
+        return true;
+}
+
+globaldef vec2_scalar_mult(a, s)
+{
+    return [a[0]*s, a[1]*s];
+}
+
+globaldef vec2_add(a, b)
+{
+    return [
+        a[0] + b[0],
+        a[1] + b[1]
+    ];
+}
+globaldef vec2_subtract(a, b)
+{
+    return [
+        a[0] - b[0],
+        a[1] - b[1]
+    ];
+}
+
+globaldef vec2_sqlen(a)
+{
+    return a[0]*a[0] + a[1]*a[1];
+}
+globaldef vec2_sqdist(a, b)
+{
+    return vec2_sqlen(vec2_subtract(a, b));
+}
+
+globaldef vec2_len(a)
+{
+    return sqrt(vec2_sqlen(a));
+}
+globaldef vec2_dist(a, b)
+{
+    return vec2_len(vec2_subtract(a, b));
+}
+
+globaldef vec2_normal(a)
+{
+    var len = vec2_len(a);
+    if(len != 0)
+        return vec2_scalar_mult(a, 1/len);
+    else
+        return [0, 0];
+}
+
+globaldef vec2_dot(a, b)
+{
+    return a[0]*b[0] + a[1]*b[1];
+}
+globaldef vec2_project(a, b)
+{
+    var b_normal = vec2_normal(b);
+    var a_project_len = vec2_dot(a, b_normal);
+    return vec2_scalar_mult(b_normal, a_project_len);
+}
+globaldef vec2_reject(a, b)
+{
+    return vec2_subtract(a, vec2_project(a, b));
+}
+
+globaldef vec2_interpolate(start, end, gauge)
+{
+    return [
+        start[0]*(1-gauge) + end[0]*gauge,
+        start[1]*(1-gauge) + end[1]*gauge
+    ];
+}
+
+globaldef within_range(low, find, high)
+{
+    return low <= find and find <= high;
+}
+globaldef get_gauge(low, find, high)
+{
+    return (find - low) / (high - low);
+}
+
+globaldef line_axis_intersect(start, end, facing_point, axis)
+{
+    var gauge = get_gauge(start[axis], facing_point[axis], end[axis]);
+    if(within_range(0, gauge, 1))
+        return [vec2_interpolate(start, end, gauge), gauge];
+}
+
+globaldef bbox_corner_from_index(bbox, index)
+{
+    if(index == 0)
+        return [bbox[0], bbox[1]];
+    if(index == 1)
+        return [bbox[2], bbox[1]];
+    if(index == 2)
+        return [bbox[0], bbox[3]];
+    if(index == 3)
+        return [bbox[2], bbox[3]];
+}
+
+globaldef entity_trace(mover, static, travel)
+{
+    var leading_point = bbox_corner_from_index(mover.bbox, (travel[1] >  0)*2 + (travel[0] >  0));
+    var new_leading_point = vec2_add(leading_point, travel);
+    var facing_point = bbox_corner_from_index(static.bbox, (travel[1] <= 0)*2 + (travel[0] <= 0));
+    
+    var try_x = line_axis_intersect(leading_point, new_leading_point, facing_point, 1); // floor
+    var try_y = line_axis_intersect(leading_point, new_leading_point, facing_point, 0); // wall
+    
+    if(try_x != 0 and try_y != 0)
+    {
+        if(try_x[1] < try_y[1])
+            try_y = 0;
+        else
+            try_x = 0;
+    }
+    
+    // floor
+    if(try_x != 0)
+    {
+        try_x = try_x[0];
+        var x_travel = try_x[0] - leading_point[0];
+        var new_bbox_left = mover.bbox[0] + x_travel;
+        var new_bbox_right = mover.bbox[2] + x_travel;
+        if(new_bbox_left < static.bbox[2] and new_bbox_right > static.bbox[0])
+        {
+            return {
+                //"contact" : try_x,
+                "travel" : vec2_subtract(try_x, leading_point),
+                "sqdist" : vec2_sqdist(try_x, leading_point),
+                "remain" : [new_leading_point[0] - try_x[0], 0],
+                "normal" : [0, -sign(travel[1])],
+            };
+        }
+    }
+    
+    // wall
+    if(try_y != 0)
+    {
+        try_y = try_y[0];
+        var y_travel = try_y[1] - leading_point[1];
+        var new_bbox_top = mover.bbox[1] + y_travel;
+        var new_bbox_bottom = mover.bbox[3] + y_travel;
+        if(new_bbox_top < static.bbox[3] and new_bbox_bottom > static.bbox[1])
+        {
+            return {
+                //"contact" : try_y,
+                "travel" : vec2_subtract(try_y, leading_point),
+                "sqdist" : vec2_sqdist(try_y, leading_point),
+                "remain" : [0, new_leading_point[1] - try_y[1]],
+                "normal" : [-sign(travel[0]), 0],
+            };
+        }
+    }
+}
+
+globaldef entity_trace_with_margin(mover, static, travel)
+{
+    var result = entity_trace(mover, static, travel);
+    
+    if(result == 0)
+        return;
+    
+    var margin = 0.1;
+    var sqmargin = 0.01;
+    if(result["sqdist"] < sqmargin)
+    {
+        result["travel"] = [0, 0];
+        result["sqdist"] = 0;
+        return result;
+    }
+    
+    var backup = vec2_scalar_mult(vec2_normal(travel), -margin);
+    
+    result["travel"] = vec2_add(result["travel"], backup);
+    result["sqdist"] = vec2_sqlen(result["travel"]);
+    
+    return result;
 }
 
 obj Character {
@@ -41,7 +236,7 @@ obj Character {
         far jump_velocity = 2.5;
         
         far sprite = sprite_load("data/images/mychar.png", 16, 32);
-        far offsets = [-16, +16, -8, +8];
+        far offsets = [-8, -16, +8, +16];
         far bbox = [0,0,0,0];
         
         update_bbox(id);
@@ -65,7 +260,7 @@ obj Tile {
         far x = 16+arg_x*32;
         far y = 16+arg_y*32;
         
-        far offsets = [-16, +16, -16, +16];
+        far offsets = [-16, -16, +16, +16];
         far bbox = [0,0,0,0];
         
         update_bbox(id);

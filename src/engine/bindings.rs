@@ -139,6 +139,16 @@ impl Engine {
         let down_previous = self.input_handler.keys_down_previous.get(&name).cloned().unwrap_or(false);
         Ok(Value::Number((!down && down_previous) as u32 as f64))
     }
+    
+    fn binding_sqrt(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to sqrt()".to_string());
+        }
+        let val = pop_front!(args, Number)?;
+        Ok(Value::Number(val.sqrt()))
+    }
     // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
     fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
     {
@@ -160,5 +170,6 @@ impl Engine {
         Engine::insert_binding(interpreter, engine, "key_down", &Engine::binding_key_down);
         Engine::insert_binding(interpreter, engine, "key_pressed", &Engine::binding_key_pressed);
         Engine::insert_binding(interpreter, engine, "key_released", &Engine::binding_key_released);
+        Engine::insert_binding(interpreter, engine, "sqrt", &Engine::binding_sqrt);
     }
 }

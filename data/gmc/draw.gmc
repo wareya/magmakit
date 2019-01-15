@@ -1,6 +1,6 @@
 with(Character)
 {
-    draw_sprite(sprite, x, y);
+    draw_sprite_scaled(sprite, x, y, image_xscale, 1);
 }
 
 with(Tile)

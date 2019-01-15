@@ -26,18 +26,10 @@ globaldef sign(x)
 
 globaldef aabb_overlap(bbox1, bbox2)
 {
-    if(bbox1[1] > bbox2[0]
-        and bbox1[0] < bbox2[1]
-        and bbox1[3] > bbox2[2]
-        and bbox1[2] < bbox2[3])
-        return true;
-}
-globaldef entity_overlap(mover, static)
-{
-    if(mover.bbox[1] > static.bbox[0]
-        and mover.bbox[0] < static.bbox[1]
-        and mover.bbox[3] > static.bbox[2]
-        and mover.bbox[2] < static.bbox[3])
+    if(     bbox1[2] > bbox2[0]
+        and bbox1[0] < bbox2[2]
+        and bbox1[3] > bbox2[1]
+        and bbox1[1] < bbox2[3])
         return true;
 }
 
@@ -228,6 +220,7 @@ obj Character {
         far yspeed = 0;
         far want_to_jump = false;
         far x_wish = 0;
+        far on_ground = false;
         
         far accel = 0.125;
         far deaccel = 0.05;
@@ -238,6 +231,7 @@ obj Character {
         far sprite = sprite_load("data/images/mychar.png", 16, 32);
         far offsets = [-8, -16, +8, +16];
         far bbox = [0,0,0,0];
+        far image_xscale = 1;
         
         update_bbox(id);
     }

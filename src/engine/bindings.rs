@@ -90,6 +90,22 @@ impl Engine {
         
         Ok(Value::Number(0.0 as f64))
     }
+    fn binding_draw_sprite_scaled(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    {
+        if args.len() != 5
+        {
+            return Err("error: expected exactly 5 arguments to draw_sprite_scaled()".to_string());
+        }
+        let sprite_index_wrapped = pop_front!(args, Custom)?;
+        let sprite_index = match_custom(sprite_index_wrapped, 0)?;
+        let x = pop_front!(args, Number)? as f32;
+        let y = pop_front!(args, Number)? as f32;
+        let xscale = pop_front!(args, Number)? as f32;
+        let yscale = pop_front!(args, Number)? as f32;
+        self.draw_sprite_scaled(sprite_index, 0, x, y, xscale, yscale);
+        
+        Ok(Value::Number(0.0 as f64))
+    }
     fn binding_draw_sprite_index(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
     {
         if args.len() != 4
@@ -166,6 +182,7 @@ impl Engine {
         Engine::insert_binding(interpreter, engine, "sprite_load", &Engine::binding_sprite_load);
         Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
         Engine::insert_binding(interpreter, engine, "draw_sprite", &Engine::binding_draw_sprite);
+        Engine::insert_binding(interpreter, engine, "draw_sprite_scaled", &Engine::binding_draw_sprite_scaled);
         Engine::insert_binding(interpreter, engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
         Engine::insert_binding(interpreter, engine, "key_down", &Engine::binding_key_down);
         Engine::insert_binding(interpreter, engine, "key_pressed", &Engine::binding_key_pressed);

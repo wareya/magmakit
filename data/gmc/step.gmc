@@ -1,35 +1,42 @@
+subdef find_shortest_trace()
+{
+    var shortest = 0;
+
+    with (Tile)
+    {
+        var trace = entity_trace_with_margin(other, self, travel);
+        if(trace != 0.0 and (shortest == 0.0 or trace["sqdist"] < shortest["sqdist"]))
+            shortest = trace;
+    }
+    
+    return shortest;
+}
+
 subdef solve_movement(travel)
 {
     for(var max_iters = 8; max_iters > 0 and (travel[0] != 0 or travel[1] != 0); max_iters--)
     {
         update_bbox(self);
         
-        var shortest = 0.0;
+        var trace = find_shortest_trace();
         
-        with (Tile)
-        {
-            var trace = entity_trace_with_margin(other, self, travel);
-            if(trace != 0.0 and (shortest == 0.0 or trace["sqdist"] < shortest["sqdist"]))
-                shortest = trace;
-        }
-        
-        if(shortest == 0.0)
+        if(trace == 0)
         {
             x += travel[0];
             y += travel[1];
             break;
         }
         
-        var new_vel = vec2_reject([xspeed, yspeed], shortest["normal"]);
+        var new_vel = vec2_reject([xspeed, yspeed], trace["normal"]);
         xspeed = new_vel[0];
         yspeed = new_vel[1];
         
-        travel = shortest["travel"];
+        travel = trace["travel"];
         
         x += travel[0];
         y += travel[1];
         
-        travel = shortest["remain"];
+        travel = trace["remain"];
     }
 }
 

@@ -7,7 +7,7 @@ use gammakit::Interpreter;
 use gammakit::Value;
 use gammakit::Custom as CustomStorage;
 
-pub (crate) type EngineBinding = Fn(&mut Engine, VecDeque<Value>) -> Result<Value, String>;
+pub (crate) type EngineBinding = Fn(&mut Engine, Vec<Value>) -> Result<Value, String>;
 
 use super::*;
 
@@ -34,14 +34,14 @@ macro_rules! pop_front { ( $list:expr, $type:ident )  =>
     {
         match $list.remove(0)
         {
-            Some(Value::$type(val)) => Ok(val),
+            Value::$type(val) => Ok(val),
             _ => Err(format!("error: given value had wrong type in binding"))
         }
     }
 } }
 
 impl Engine {
-    fn binding_sprite_load(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_sprite_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 3
         {
@@ -53,7 +53,7 @@ impl Engine {
         
         Ok(build_custom(0, self.load_sprite(&filename, (xoffset, yoffset))))
     }
-    fn binding_sprite_load_with_subimages(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_sprite_load_with_subimages(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 2
         {
@@ -76,7 +76,7 @@ impl Engine {
         
         Ok(build_custom(0, self.load_sprite_with_subimages(&filename, subimages_vec)))
     }
-    fn binding_draw_sprite(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 3
         {
@@ -90,7 +90,7 @@ impl Engine {
         
         Ok(Value::Number(0.0 as f64))
     }
-    fn binding_draw_sprite_scaled(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_draw_sprite_scaled(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 5
         {
@@ -106,7 +106,7 @@ impl Engine {
         
         Ok(Value::Number(0.0 as f64))
     }
-    fn binding_draw_sprite_index(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_draw_sprite_index(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 4
         {
@@ -123,7 +123,7 @@ impl Engine {
         
         Ok(Value::Number(0.0 as f64))
     }
-    fn binding_key_down(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_key_down(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
         {
@@ -133,7 +133,7 @@ impl Engine {
         let down = self.input_handler.keys_down.get(&name).cloned().unwrap_or(false);
         Ok(Value::Number(down as u32 as f64))
     }
-    fn binding_key_pressed(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_key_pressed(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
         {
@@ -144,7 +144,7 @@ impl Engine {
         let down_previous = self.input_handler.keys_down_previous.get(&name).cloned().unwrap_or(false);
         Ok(Value::Number((down && !down_previous) as u32 as f64))
     }
-    fn binding_key_released(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_key_released(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
         {
@@ -156,7 +156,7 @@ impl Engine {
         Ok(Value::Number((!down && down_previous) as u32 as f64))
     }
     
-    fn binding_sqrt(&mut self, mut args : VecDeque<Value>) -> Result<Value, String>
+    fn binding_sqrt(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
         {
@@ -169,7 +169,7 @@ impl Engine {
     fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
     {
         let engine_ref = Rc::clone(&engine);
-        interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : VecDeque<Value>| -> Result<Value, String>
+        interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : Vec<Value>| -> Result<Value, String>
         {
             let mut engine = engine_ref.try_borrow_mut().or_else(|_| Err(format!("error: failed to lock engine in {}()", name)))?;
             

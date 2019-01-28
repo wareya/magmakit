@@ -15,7 +15,7 @@ subdef find_shortest_trace()
 
 def vec_pointwise_add(a, b)
 {
-    for(var i = 0; i < len(a) and i < len(b); i++)
+    for(var i = 0; i < a->len() and i < b->len(); i++)
         a[i] += b[i];
     return a;
 }

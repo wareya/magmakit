@@ -6,7 +6,7 @@ subdef find_shortest_trace()
     with (Tile)
     {
         var trace = entity_trace_with_margin(other, self, travel);
-        if(trace != 0 and (shortest == 0 or trace["sqdist"] < shortest["sqdist"]))
+        if(trace != 0 and (shortest == 0 or trace.sqdist < shortest.sqdist))
             shortest = trace;
     }
     
@@ -42,19 +42,19 @@ subdef solve_movement(travel)
             break;
         }
         
-        var new_vel = vec2_reject([xspeed, yspeed], trace["normal"]);
+        var new_vel = vec2_reject([xspeed, yspeed], trace.normal);
         xspeed = new_vel[0];
         yspeed = new_vel[1];
         
-        if(trace["normal"][1] > 0.7)
+        if(trace.normal[1] > 0.7)
             touched_ground = true;
         
-        travel = trace["travel"];
+        travel = trace.travel;
         
         x += travel[0];
         y += travel[1];
         
-        travel = trace["remain"];
+        travel = trace.remain;
     }
     
     return touched_ground;

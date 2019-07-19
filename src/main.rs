@@ -64,8 +64,8 @@ fn main()
     
     let mut parser = gammakit::Parser::new_from_default().unwrap();
     let gmc_init = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/init.gmc").unwrap()).unwrap();
-    let gmc_step = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/step.gmc").unwrap()).unwrap();
-    let gmc_draw = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/draw.gmc").unwrap()).unwrap();
+    let gmc_step = parser.give_me_bytecode_share_bookkeeping(&load_string(&program_path, "data/gmc/step.gmc").unwrap(), &gmc_init).unwrap();
+    let gmc_draw = parser.give_me_bytecode_share_bookkeeping(&load_string(&program_path, "data/gmc/draw.gmc").unwrap(), &gmc_init).unwrap();
     
     use std::rc::Rc;
     use std::cell::RefCell;

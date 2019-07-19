@@ -196,17 +196,17 @@ globaldef entity_trace_with_margin(mover, static, travel)
     
     var margin = 0.1;
     var sqmargin = 0.01;
-    if(result.sqdist < sqmargin)
+    if(result{sqdist} < sqmargin)
     {
-        result.travel = [0, 0];
-        result.sqdist = 0;
+        result{travel} = [0, 0];
+        result{sqdist} = 0;
         return result;
     }
     
     var backup = vec2_scalar_mult(vec2_normal(travel), -margin);
     
-    result.travel = vec2_add(result.travel, backup);
-    result.sqdist = vec2_sqlen(result.travel);
+    result{travel} = vec2_add(result{travel}, backup);
+    result{sqdist} = vec2_sqlen(result{travel});
     
     return result;
 }

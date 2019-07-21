@@ -40,7 +40,91 @@ macro_rules! pop_front { ( $list:expr, $type:ident )  =>
     }
 } }
 
+fn default_return() -> Result<Value, String>
+{
+    Ok(Value::Number(0.0 as f64))
+}
+
 impl Engine {
+    fn binding_program_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 2
+        {
+            return Err("error: expected exactly 2 arguments to program_load()".to_string());
+        }
+        let filename_vertex = pop_front!(args, Text)?;
+        let filename_fragment = pop_front!(args, Text)?;
+        
+        Ok(build_custom(1, self.load_program(&filename_vertex, &filename_fragment)?))
+    }
+    fn binding_program_set(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 argument to program_set()".to_string());
+        }
+        let program_index_wrapped = pop_front!(args, Custom)?;
+        let program_index = match_custom(program_index_wrapped, 1)?;
+        
+        self.set_program(program_index)?;
+        default_return()
+    }
+    fn binding_program_reset(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to program_set()".to_string());
+        }
+        self.reset_program();
+        default_return()
+    }
+    fn binding_draw_text(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 3
+        {
+            return Err("error: expected exactly 3 arguments to draw_text()".to_string());
+        }
+        let text = pop_front!(args, Text)?;
+        let x = pop_front!(args, Number)? as f32;
+        let y = pop_front!(args, Number)? as f32;
+        self.text_system.draw_events.push(TextDrawEvent
+        {
+            x,
+            y,
+            w : 999999999.0,
+            h : 999999999.0,
+            text,
+            size: 24.0,
+            color : [1.0, 1.0, 1.0, 1.0],
+        });
+        
+        default_return()
+    }
+    fn binding_draw_text_ext(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 6
+        {
+            return Err("error: expected exactly 6 arguments to draw_text_ext()".to_string());
+        }
+        let text = pop_front!(args, Text)?;
+        let x = pop_front!(args, Number)? as f32;
+        let y = pop_front!(args, Number)? as f32;
+        let w = pop_front!(args, Number)? as f32;
+        let h = pop_front!(args, Number)? as f32;
+        let size = pop_front!(args, Number)? as f32;
+        self.text_system.draw_events.push(TextDrawEvent
+        {
+            x,
+            y,
+            w,
+            h,
+            text,
+            size,
+            color : [1.0, 1.0, 1.0, 1.0],
+        });
+        
+        default_return()
+    }
     fn binding_sprite_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 3
@@ -88,7 +172,7 @@ impl Engine {
         let y = pop_front!(args, Number)? as f32;
         self.draw_sprite(sprite_index, 0, x, y);
         
-        Ok(Value::Number(0.0 as f64))
+        default_return()
     }
     fn binding_draw_sprite_scaled(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
@@ -104,7 +188,7 @@ impl Engine {
         let yscale = pop_front!(args, Number)? as f32;
         self.draw_sprite_scaled(sprite_index, 0, x, y, xscale, yscale);
         
-        Ok(Value::Number(0.0 as f64))
+        default_return()
     }
     fn binding_draw_sprite_index(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
@@ -121,7 +205,7 @@ impl Engine {
         
         self.draw_sprite(sprite_index, image_index, x, y);
         
-        Ok(Value::Number(0.0 as f64))
+        default_return()
     }
     fn binding_key_down(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
@@ -179,6 +263,11 @@ impl Engine {
     
     pub (crate) fn insert_bindings(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>)
     {
+        Engine::insert_binding(interpreter, engine, "program_load", &Engine::binding_program_load);
+        Engine::insert_binding(interpreter, engine, "program_set", &Engine::binding_program_set);
+        Engine::insert_binding(interpreter, engine, "program_reset", &Engine::binding_program_reset);
+        Engine::insert_binding(interpreter, engine, "draw_text", &Engine::binding_draw_text);
+        Engine::insert_binding(interpreter, engine, "draw_text_ext", &Engine::binding_draw_text_ext);
         Engine::insert_binding(interpreter, engine, "sprite_load", &Engine::binding_sprite_load);
         Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
         Engine::insert_binding(interpreter, engine, "draw_sprite", &Engine::binding_draw_sprite);

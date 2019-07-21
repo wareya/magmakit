@@ -1,6 +1,7 @@
 use glium::{Surface, implement_vertex, uniform};
 use glium::texture::SrgbTexture2d;
 use glium::uniforms::{Sampler, MinifySamplerFilter, MagnifySamplerFilter};
+use std::rc::Rc;
 
 use super::*;
 
@@ -25,13 +26,14 @@ fn deg2rad(x : f64) -> f64
     x * std::f64::consts::PI / 360.0
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub (super) struct Vertex {
     position: [f32; 2]
 }
 
 implement_vertex!(Vertex, position);
 
+#[derive(Debug)]
 pub (super) struct SpriteImage {
     origin: (f64, f64),
     topleft: (f64, f64),
@@ -49,15 +51,151 @@ impl SpriteImage {
     }
 }
 
+#[derive(Debug)]
 pub (super) struct SpriteSheet {
     images: Vec<SpriteImage>,
     texture: SrgbTexture2d,
 }
 
+#[derive(Debug)]
 pub (super) struct DrawEvent {
     matrix: [[f32; 4]; 4],
     spritesheet: u64,
     imageindex: u64
+}
+
+#[derive(Debug)]
+pub (super) struct TextDrawEvent {
+    pub (crate) x: f32,
+    pub (crate) y: f32,
+    pub (crate) w: f32,
+    pub (crate) h: f32,
+    pub (crate) size : f32,
+    pub (crate) text : String,
+    pub (crate) color : [f32; 4],
+}
+
+#[derive(Debug, Clone)]
+pub (super) struct TextDrawData {
+    tex_coords: glyph_brush::rusttype::Rect<f32>,
+    draw_coords: glyph_brush::rusttype::Rect<i32>,
+    color : [f32; 4],
+}
+
+impl TextDrawData
+{
+    pub (crate) fn new(quad_data : glyph_brush::GlyphVertex) -> TextDrawData
+    {
+        TextDrawData{tex_coords : quad_data.tex_coords, draw_coords : quad_data.pixel_coords, color : quad_data.color}
+    }
+}
+
+pub (super) struct TextSystem {
+    glyph_brush : glyph_brush::GlyphBrush<'static, TextDrawData>,
+    texture : glium::texture::Texture2d,
+    texture_dimensions : (u32, u32),
+    pub (crate) draw_events : Vec<TextDrawEvent>,
+    cached_draw : Vec<TextDrawData>,
+    display : glium::Display,
+}
+
+impl TextSystem
+{
+    pub (crate) fn new(display : &glium::Display) -> TextSystem
+    {
+        use glyph_brush::GlyphBrushBuilder;
+        use glium::texture::Texture2d;
+        use glium::texture::UncompressedFloatFormat::U8U8U8U8;
+        use glium::texture::MipmapsOption;
+        
+        let font: &[u8] = include_bytes!("../../data/font/Chivo-Regular.ttf");
+        let glyph_brush = GlyphBrushBuilder::using_font_bytes(font).build();
+        
+        let texture_dimensions = glyph_brush.texture_dimensions();
+        let texture = Texture2d::empty_with_format(display, U8U8U8U8, MipmapsOption::NoMipmap, texture_dimensions.0, texture_dimensions.1).unwrap();
+        
+        TextSystem{glyph_brush, texture, texture_dimensions, draw_events : Vec::new(), cached_draw : Vec::new(), display: display.clone()}
+    }
+    fn update_texture(texture : &mut glium::texture::Texture2d, rect : glyph_brush::rusttype::Rect<u32>, tex_data : &[u8])
+    {
+        let dims = rect.max - rect.min;
+        let mut buffer = vec!(vec!((0u8, 0u8, 0u8, 0u8); dims.x as usize); dims.y as usize);
+        let mut i = 0;
+        for y in 0..dims.y
+        {
+            for x in 0..dims.x
+            {
+                buffer[y as usize][x as usize] = (255, 255, 255, tex_data[i]);
+                i += 1;
+            }
+        }
+        texture.write
+        (
+            glium::Rect
+            {
+                left : rect.min.x,
+                bottom : rect.min.y,
+                width : dims.x,
+                height : dims.y
+            },
+            buffer
+        );
+    }
+    fn resize_texture(&mut self, new_size : (u32, u32))
+    {
+        use glium::texture::Texture2d;
+        use glium::texture::UncompressedFloatFormat::U8U8U8U8;
+        use glium::texture::MipmapsOption;
+        self.texture_dimensions = new_size;
+        self.glyph_brush.resize_texture(self.texture_dimensions.0, self.texture_dimensions.1);
+        self.texture = Texture2d::empty_with_format(&self.display, U8U8U8U8, MipmapsOption::NoMipmap, self.texture_dimensions.0, self.texture_dimensions.1).unwrap();
+    }
+    fn process_queue(&mut self) -> Result<glyph_brush::BrushAction<TextDrawData>, glyph_brush::BrushError> 
+    {
+        let texture = &mut self.texture;
+        self.glyph_brush.process_queued(
+            |rect, tex_data| TextSystem::update_texture(texture, rect, tex_data),
+            TextDrawData::new
+        ) 
+    }
+    fn draw_quads(&self, quads : &Vec<TextDrawData>, parent : &Engine, target : &mut glium::Frame, matrix_view : &[[f32; 4]; 4])
+    {
+        for quad in quads
+        {
+            let tex_rect = quad.tex_coords;
+            
+            let draw_rect = quad.draw_coords;
+            let draw_size = draw_rect.max - draw_rect.min;
+            
+            let matrix_origin = [
+                [draw_size.x as f32, 0.0, 0.0, 0.0],
+                [0.0, draw_size.y as f32, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ];
+            let event_matrix = [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [draw_rect.min.x as f32, draw_rect.min.y as f32, 0.0, 1.0],
+            ];
+            let matrix_command = m4mult(&event_matrix, &matrix_origin);
+            
+            let uniforms = uniform! {
+                matrix_view : *matrix_view,
+                matrix_command : matrix_command,
+                tex_topleft : [tex_rect.min.x, tex_rect.min.y],//quad.0.min.x, quad.0.min.y],
+                tex_bottomright : [tex_rect.max.x, tex_rect.max.y],//quad.0.max.x, quad.0.max.y],
+                color_multiply : quad.color,
+                tex : Sampler::new(&self.texture),
+            };
+            target.draw(&parent.vertex_buffer, &parent.indices, &parent.current_program, &uniforms, &glium::DrawParameters
+            {
+                blend : glium::Blend::alpha_blending(),
+                ..Default::default()
+            }).unwrap();
+        }
+    }
 }
 
 
@@ -82,6 +220,29 @@ impl Engine {
         let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip);
         
         (vertex_buffer, indices)
+    }
+    
+    pub (super) fn load_program(&mut self, filename_vertex : &str, filename_fragment : &str) -> Result<u64, String>
+    {
+        let vertex_shader_src = load_string(&self.program_path, filename_vertex)?;
+        let fragment_shader_src = load_string(&self.program_path, filename_fragment)?;
+        let glprogram = glium::Program::from_source(&self.display, &vertex_shader_src, &fragment_shader_src, None).or_else(|x| Err(format!("failed to compile program: {}", x)))?;
+        
+        let index = self.program_index_counter;
+        self.programs.insert(index, Rc::new(glprogram));
+        self.program_index_counter += 1;
+        Ok(index)
+    }
+    
+    pub (super) fn set_program(&mut self, program_id : u64) -> Result<(), String>
+    {
+        self.current_program = Rc::clone(self.programs.get(&program_id).ok_or_else(|| "no such gl program".to_string())?);
+        Ok(())
+    }
+    
+    pub (super) fn reset_program(&mut self)
+    {
+        self.current_program = Rc::clone(&self.default_program);
     }
     
     pub (super) fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
@@ -192,9 +353,50 @@ impl Engine {
                 matrix_command : matrix_command,
                 tex_topleft : [image.topleft.0 as f32 / tex_w, image.topleft.1 as f32 / tex_h],
                 tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
+                color_multiply : [1.0, 1.0, 1.0, 1.0f32],
                 tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
             };
-            target.draw(&self.vertex_buffer, &self.indices, &self.glprogram, &uniforms, &Default::default()).unwrap();
+            target.draw(&self.vertex_buffer, &self.indices, &self.current_program, &uniforms, &glium::DrawParameters
+            {
+                blend : glium::Blend::alpha_blending(),
+                ..Default::default()
+            }).unwrap();
+        }
+        
+        for event in self.text_system.draw_events.drain(..)
+        {
+            println!("got a thing; {:?}", event);
+            self.text_system.glyph_brush.queue(glyph_brush::Section {
+                text : &event.text,
+                screen_position : (event.x, event.y),
+                bounds : (event.w, event.h),
+                scale : glyph_brush::rusttype::Scale::uniform(event.size),
+                color : event.color,
+                ..glyph_brush::Section::default()
+            });
+        };
+        
+        let mut succeeded = false;
+        while !succeeded
+        {
+            succeeded = true;
+            match self.text_system.process_queue()
+            {
+                Ok(glyph_brush::BrushAction::Draw(quads)) =>
+                {
+                    self.text_system.draw_quads(&quads, &self, &mut target, &matrix_view);
+                    self.text_system.cached_draw = quads;
+                }
+                Ok(glyph_brush::BrushAction::ReDraw) =>
+                {
+                    self.text_system.draw_quads(&self.text_system.cached_draw, &self, &mut target, &matrix_view);
+                }
+                Err(glyph_brush::BrushError::TextureTooSmall { suggested }) =>
+                {
+                    succeeded = false;
+                    self.text_system.resize_texture(suggested);
+                }
+            }
         }
         
         target.finish().unwrap();

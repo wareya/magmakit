@@ -87,16 +87,7 @@ impl Engine {
         let text = pop_front!(args, Text)?;
         let x = pop_front!(args, Number)? as f32;
         let y = pop_front!(args, Number)? as f32;
-        self.text_system.draw_events.push(TextDrawEvent
-        {
-            x,
-            y,
-            w : 999999999.0,
-            h : 999999999.0,
-            text,
-            size: 24.0,
-            color : [1.0, 1.0, 1.0, 1.0],
-        });
+        self.text_system.push_event(&text, x, y, 999999999.0, 999999999.0, 24.0, [1.0, 1.0, 1.0, 1.0]);
         
         default_return()
     }
@@ -112,16 +103,7 @@ impl Engine {
         let w = pop_front!(args, Number)? as f32;
         let h = pop_front!(args, Number)? as f32;
         let size = pop_front!(args, Number)? as f32;
-        self.text_system.draw_events.push(TextDrawEvent
-        {
-            x,
-            y,
-            w,
-            h,
-            text,
-            size,
-            color : [1.0, 1.0, 1.0, 1.0],
-        });
+        self.text_system.push_event(&text, x, y, w, h, size, [1.0, 1.0, 1.0, 1.0]);
         
         default_return()
     }

@@ -66,13 +66,13 @@ pub (super) struct DrawEvent {
 
 #[derive(Debug)]
 pub (super) struct TextDrawEvent {
-    pub (crate) x: f32,
-    pub (crate) y: f32,
-    pub (crate) w: f32,
-    pub (crate) h: f32,
-    pub (crate) size : f32,
-    pub (crate) text : String,
-    pub (crate) color : [f32; 4],
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    size : f32,
+    text : String,
+    color : [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -94,7 +94,6 @@ pub (super) struct TextSystem {
     glyph_brush : glyph_brush::GlyphBrush<'static, TextDrawData>,
     texture : glium::texture::Texture2d,
     texture_dimensions : (u32, u32),
-    pub (crate) draw_events : Vec<TextDrawEvent>,
     cached_draw : Vec<TextDrawData>,
     display : glium::Display,
 }
@@ -114,7 +113,7 @@ impl TextSystem
         let texture_dimensions = glyph_brush.texture_dimensions();
         let texture = Texture2d::empty_with_format(display, U8U8U8U8, MipmapsOption::NoMipmap, texture_dimensions.0, texture_dimensions.1).unwrap();
         
-        TextSystem{glyph_brush, texture, texture_dimensions, draw_events : Vec::new(), cached_draw : Vec::new(), display: display.clone()}
+        TextSystem{glyph_brush, texture, texture_dimensions, cached_draw : Vec::new(), display: display.clone()}
     }
     fn update_texture(texture : &mut glium::texture::Texture2d, rect : glyph_brush::rusttype::Rect<u32>, tex_data : &[u8])
     {
@@ -149,6 +148,17 @@ impl TextSystem
         self.texture_dimensions = new_size;
         self.glyph_brush.resize_texture(self.texture_dimensions.0, self.texture_dimensions.1);
         self.texture = Texture2d::empty_with_format(&self.display, U8U8U8U8, MipmapsOption::NoMipmap, self.texture_dimensions.0, self.texture_dimensions.1).unwrap();
+    }
+    pub (crate) fn push_event(&mut self, text : &String, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
+    {
+        self.glyph_brush.queue(glyph_brush::Section {
+            text,
+            screen_position : (x, y),
+            bounds : (w, h),
+            scale : glyph_brush::rusttype::Scale::uniform(size),
+            color,
+            ..glyph_brush::Section::default()
+        });
     }
     fn process_queue(&mut self) -> Result<glyph_brush::BrushAction<TextDrawData>, glyph_brush::BrushError> 
     {
@@ -362,19 +372,6 @@ impl Engine {
                 ..Default::default()
             }).unwrap();
         }
-        
-        for event in self.text_system.draw_events.drain(..)
-        {
-            println!("got a thing; {:?}", event);
-            self.text_system.glyph_brush.queue(glyph_brush::Section {
-                text : &event.text,
-                screen_position : (event.x, event.y),
-                bounds : (event.w, event.h),
-                scale : glyph_brush::rusttype::Scale::uniform(event.size),
-                color : event.color,
-                ..glyph_brush::Section::default()
-            });
-        };
         
         let mut succeeded = false;
         while !succeeded

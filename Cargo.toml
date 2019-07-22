@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 image = "*"
-glium = "*"
+glium = "0.25.1"
 glyph_brush = "*"
 gammakit = { path = "../gammakit" }

@@ -105,15 +105,27 @@ fn main()
             
             events_loop.poll_events(|event|
             {
-                use glium::glutin::{Event::WindowEvent, WindowEvent::*};
+                use glium::glutin::{Event::WindowEvent, WindowEvent::*, Event::DeviceEvent, DeviceEvent::MouseMotion};
                 match event
                 {
-                    WindowEvent { event, .. } => match event
+                    WindowEvent{event, ..} => match event
                     {
                         CloseRequested => closed = true,
-                        KeyboardInput{device_id : _, input : event} => engine.input_handler.keyevent(event),
+                        KeyboardInput{input, ..} => engine.input_handler.keyevent(input),
+                        MouseInput{state, button, ..} => engine.input_handler.mousebuttonevent(state, button),
+                        CursorMoved{position, ..} => engine.input_handler.mouse_pos = position.into(),
+                        MouseWheel{delta, ..} => engine.input_handler.scroll(delta),
                         _ => ()
                     },
+                    DeviceEvent{event, ..} => match event
+                    {
+                        MouseMotion{delta, ..} =>
+                        {
+                            engine.input_handler.mouse_delta.0 += delta.0;
+                            engine.input_handler.mouse_delta.1 += delta.1;
+                        }
+                        _ => ()
+                    }
                     _ => (),
                 }
             });

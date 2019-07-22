@@ -7,3 +7,7 @@ with(Tile)
 {
     draw_sprite_index(sprite, x/32, x, y);
 }
+
+
+var cursor_pos = mouse_position();
+draw_sprite_index(global.cursor_sprite, mouse_button_pressed(0), cursor_pos[0], cursor_pos[1]);

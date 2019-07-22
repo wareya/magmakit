@@ -2,8 +2,7 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 
 # TODO
 
-- mouse interaction
-- framerate limiter, clock stuff
+- adjustable framerate limiter, clock stuff
 - surface drawing, sampling from multiple textures in a single shader, etc
 - font load functions
 - text with internal formatting

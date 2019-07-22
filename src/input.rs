@@ -1,19 +1,31 @@
 use std::collections::HashMap;
 
 use glium::glutin;
+use glutin::{MouseButton, ElementState, MouseScrollDelta};
 
 pub (crate) struct InputHandler {
     pub (crate) keys_down_previous: HashMap<String, bool>,
     pub (crate) keys_down: HashMap<String, bool>,
     pub (crate) mouse_pos: (f64, f64),
     pub (crate) mouse_delta: (f64, f64),
+    pub (crate) mouse_buttons_previous: [bool; 5],
     pub (crate) mouse_buttons: [bool; 5],
+    pub (crate) mouse_scroll_delta: (f64, f64),
 }
 
 impl InputHandler {
     pub (crate) fn new() -> InputHandler
     {
-        InputHandler{keys_down : HashMap::new(), keys_down_previous : HashMap::new(), mouse_pos: (0.0, 0.0), mouse_delta: (0.0, 0.0), mouse_buttons: [false, false, false, false, false]}
+        InputHandler
+        {
+            keys_down : HashMap::new(),
+            keys_down_previous : HashMap::new(),
+            mouse_pos: (0.0, 0.0),
+            mouse_delta: (0.0, 0.0),
+            mouse_buttons_previous: [false, false, false, false, false],
+            mouse_buttons: [false, false, false, false, false],
+            mouse_scroll_delta: (0.0, 0.0),
+        }
     }
     pub (crate) fn keyevent(&mut self, event : glutin::KeyboardInput)
     {
@@ -149,12 +161,48 @@ impl InputHandler {
             };
             if keystr != ""
             {
-                self.keys_down.insert(keystr.to_string(), event.state == glutin::ElementState::Pressed);
+                self.keys_down.insert(keystr.to_string(), event.state == ElementState::Pressed);
             }
         }
+    }
+    pub (crate) fn mousebuttonevent(&mut self, state : ElementState, button : MouseButton)
+    {
+        let state = match state
+        {
+            ElementState::Pressed => true,
+            _ => false
+        };
+        let index = match button
+        {
+            MouseButton::Left => 0,
+            MouseButton::Right => 1,
+            MouseButton::Middle => 2,
+            MouseButton::Other(0) => 3,
+            MouseButton::Other(1) => 4,
+            MouseButton::Other(_) => return
+        };
+        self.mouse_buttons[index] = state;
+    }
+    pub (crate) fn scroll(&mut self, delta : MouseScrollDelta)
+    {
+        const PIXELS_TO_LINES : f64 = 1.0/16.0;
+        let delta = match delta
+        {
+            MouseScrollDelta::LineDelta(x, y) => (x as f64, y as f64),
+            MouseScrollDelta::PixelDelta(logical) =>
+            {
+                let delta : (f64, f64) = logical.into();
+                (delta.0*PIXELS_TO_LINES, delta.1*PIXELS_TO_LINES)
+            }
+        };
+        self.mouse_scroll_delta.0 += delta.0;
+        self.mouse_scroll_delta.1 += delta.1;
     }
     pub (crate) fn cycle(&mut self)
     {
         self.keys_down_previous = self.keys_down.clone();
+        self.mouse_buttons_previous = self.mouse_buttons_previous.clone();
+        self.mouse_delta = (0.0, 0.0);
+        self.mouse_scroll_delta = (0.0, 0.0);
     }
 }

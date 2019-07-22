@@ -69,7 +69,7 @@ impl Engine {
         self.set_program(program_index)?;
         default_return()
     }
-    fn binding_program_reset(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_program_reset(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -222,6 +222,97 @@ impl Engine {
         Ok(Value::Number((!down && down_previous) as u32 as f64))
     }
     
+    fn binding_mouse_cursor_disable(&mut self, args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to mouse_cursor_disable()".to_string());
+        }
+        self.display.gl_window().window().hide_cursor(true);
+        
+        default_return()
+    }
+    fn binding_mouse_cursor_enable(&mut self, args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to mouse_cursor_enable()".to_string());
+        }
+        self.display.gl_window().window().hide_cursor(false);
+        
+        default_return()
+    }
+    
+    fn binding_mouse_position(&mut self, args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to mouse_position()".to_string());
+        }
+        let (x, y) = self.input_handler.mouse_pos;
+        Ok(Value::Array(vec!(Value::Number(x), Value::Number(y))))
+    }
+    fn binding_mouse_position_x(&mut self, args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to mouse_position_x()".to_string());
+        }
+        Ok(Value::Number(self.input_handler.mouse_pos.0))
+    }
+    fn binding_mouse_position_y(&mut self, args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to mouse_position_y()".to_string());
+        }
+        Ok(Value::Number(self.input_handler.mouse_pos.1))
+    }
+    fn binding_mouse_button_down(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to mouse_button_down()".to_string());
+        }
+        let button = pop_front!(args, Number)?.round();
+        if button >= 5.0 || button < 0.0
+        {
+            return default_return();
+        }
+        let down = self.input_handler.mouse_buttons[button as usize];
+        Ok(Value::Number(down as u32 as f64))
+    }
+    fn binding_mouse_button_pressed(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to mouse_button_pressed()".to_string());
+        }
+        let button = pop_front!(args, Number)?.round();
+        if button >= 5.0 || button < 0.0
+        {
+            return default_return();
+        }
+        let down = self.input_handler.mouse_buttons[button as usize];
+        let down_previous = self.input_handler.mouse_buttons_previous[button as usize];
+        Ok(Value::Number((down && !down_previous) as u32 as f64))
+    }
+    fn binding_mouse_button_released(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to mouse_button_released()".to_string());
+        }
+        let button = pop_front!(args, Number)?.round();
+        if button >= 5.0 || button < 0.0
+        {
+            return default_return();
+        }
+        let down = self.input_handler.mouse_buttons[button as usize];
+        let down_previous = self.input_handler.mouse_buttons_previous[button as usize];
+        Ok(Value::Number((!down && down_previous) as u32 as f64))
+    }
+    
     fn binding_sqrt(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
@@ -245,19 +336,33 @@ impl Engine {
     
     pub (crate) fn insert_bindings(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>)
     {
+        Engine::insert_binding(interpreter, engine, "sqrt", &Engine::binding_sqrt);
+        
         Engine::insert_binding(interpreter, engine, "program_load", &Engine::binding_program_load);
         Engine::insert_binding(interpreter, engine, "program_set", &Engine::binding_program_set);
         Engine::insert_binding(interpreter, engine, "program_reset", &Engine::binding_program_reset);
-        Engine::insert_binding(interpreter, engine, "draw_text", &Engine::binding_draw_text);
-        Engine::insert_binding(interpreter, engine, "draw_text_ext", &Engine::binding_draw_text_ext);
+        
         Engine::insert_binding(interpreter, engine, "sprite_load", &Engine::binding_sprite_load);
         Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
+        
+        Engine::insert_binding(interpreter, engine, "draw_text", &Engine::binding_draw_text);
+        Engine::insert_binding(interpreter, engine, "draw_text_ext", &Engine::binding_draw_text_ext);
         Engine::insert_binding(interpreter, engine, "draw_sprite", &Engine::binding_draw_sprite);
         Engine::insert_binding(interpreter, engine, "draw_sprite_scaled", &Engine::binding_draw_sprite_scaled);
         Engine::insert_binding(interpreter, engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
+        
         Engine::insert_binding(interpreter, engine, "key_down", &Engine::binding_key_down);
         Engine::insert_binding(interpreter, engine, "key_pressed", &Engine::binding_key_pressed);
         Engine::insert_binding(interpreter, engine, "key_released", &Engine::binding_key_released);
-        Engine::insert_binding(interpreter, engine, "sqrt", &Engine::binding_sqrt);
+        
+        Engine::insert_binding(interpreter, engine, "mouse_position", &Engine::binding_mouse_position);
+        Engine::insert_binding(interpreter, engine, "mouse_position_x", &Engine::binding_mouse_position_x);
+        Engine::insert_binding(interpreter, engine, "mouse_position_y", &Engine::binding_mouse_position_y);
+        Engine::insert_binding(interpreter, engine, "mouse_button_down", &Engine::binding_mouse_button_down);
+        Engine::insert_binding(interpreter, engine, "mouse_button_pressed", &Engine::binding_mouse_button_pressed);
+        Engine::insert_binding(interpreter, engine, "mouse_button_released", &Engine::binding_mouse_button_released);
+        
+        Engine::insert_binding(interpreter, engine, "mouse_cursor_enable", &Engine::binding_mouse_cursor_enable);
+        Engine::insert_binding(interpreter, engine, "mouse_cursor_disable", &Engine::binding_mouse_cursor_disable);
     }
 }

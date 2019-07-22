@@ -243,6 +243,7 @@ globalvar mychar;
 global.mychar = instance_create(Character);
 
 globalvar tile_sprite = sprite_load_with_subimages("data/images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
+globalvar cursor_sprite = sprite_load_with_subimages("data/images/cursor.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
 
 obj Tile {
     def create()
@@ -271,3 +272,4 @@ for(var i = 0; i < 20; i++)
     make_tile(i,5-floor(i/4));
 
 print("----init.gmc has been run");
+mouse_cursor_disable();

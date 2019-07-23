@@ -82,4 +82,28 @@ impl Engine {
             text_system : RefCell::new(text_system)
         }
     }
+    pub (crate) fn unsafe_check_global_cursor_position(&mut self)
+    {
+        if cfg!(windows)
+        {
+            use winapi::um::winuser::GetCursorPos;
+            use winapi::shared::windef::POINT;
+            let (valid, cursor_x, cursor_y);
+            unsafe
+            {
+                let mut cursor_pos : POINT = std::mem::zeroed();
+                valid = GetCursorPos(&mut cursor_pos);
+                cursor_x = cursor_pos.x;
+                cursor_y = cursor_pos.y;
+            }
+            if valid != 0
+            {
+                let factor = self.display.gl_window().window().get_hidpi_factor();
+                let offset = self.display.gl_window().window().get_inner_position().unwrap();
+                let new_x = factor*cursor_x as f64 - offset.x;
+                let new_y = factor*cursor_y as f64 - offset.y;
+                self.input_handler.mouse_pos = (new_x, new_y);
+            }
+        }
+    }
 }

@@ -57,7 +57,7 @@ fn main()
     
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new().with_dimensions(glutin::dpi::LogicalSize::new(800.0, 600.0));
-    let context = glutin::ContextBuilder::new();
+    let context = glutin::ContextBuilder::new().with_vsync(true);
     let display = glium::Display::new(window, context, &events_loop).unwrap();
     
     let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone())));
@@ -113,7 +113,7 @@ fn main()
                         CloseRequested => closed = true,
                         KeyboardInput{input, ..} => engine.input_handler.keyevent(input),
                         MouseInput{state, button, ..} => engine.input_handler.mousebuttonevent(state, button),
-                        CursorMoved{position, ..} => engine.input_handler.mouse_pos = position.into(),
+                        //CursorMoved{position, ..} => engine.input_handler.mouse_pos = position.into(),
                         MouseWheel{delta, ..} => engine.input_handler.scroll(delta),
                         _ => ()
                     },
@@ -129,6 +129,7 @@ fn main()
                     _ => (),
                 }
             });
+            engine.unsafe_check_global_cursor_position();
         }
         else
         {

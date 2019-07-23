@@ -9,6 +9,7 @@ image = "*"
 glium = "0.25.1"
 glyph_brush = "*"
 gammakit = { path = "../gammakit" }
+winapi = "*"
 
 [profile.bench]
 codegen-units = 1

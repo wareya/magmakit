@@ -516,6 +516,7 @@ dependencies = [
  "glium 0.25.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glyph_brush 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

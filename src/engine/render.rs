@@ -409,17 +409,17 @@ impl Engine {
             {
                 default_surface.clear_color_infinite_depth(&self.display, (0.5, 0.5, 0.5, 1.0));
                 self.draw_target = Some(target);
-                self.draw_w = dims.0;
-                self.draw_h = dims.1;
-                self.matrix_view = [
-                    [2.0/dims.0 as f32, 0.0, 0.0, 0.0],
-                    [0.0, -2.0/dims.1 as f32, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [-1.0, 1.0, 0.0, 1.0f32],
-                ];
                 return;
             }
         }
+        self.draw_w = dims.0;
+        self.draw_h = dims.1;
+        self.matrix_view = [
+            [2.0/dims.0 as f32, 0.0, 0.0, 0.0],
+            [0.0, -2.0/dims.1 as f32, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-1.0, 1.0, 0.0, 1.0f32],
+        ];
         self.default_surface =  Some(Surface::new(&self.display, target.get_dimensions()));
         self.default_surface.as_ref().unwrap().clear_color_infinite_depth(&self.display, (0.5, 0.5, 0.5, 1.0));
         self.draw_target = Some(target);

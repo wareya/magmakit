@@ -8,6 +8,7 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 - text with internal formatting
 - buffer-based file access api
 - faucnet style networking api
+- simple sample-and-emitter audio system, no busses, mixer channels are tags
 
 # License
 

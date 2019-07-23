@@ -125,9 +125,3 @@ with(Character)
     
     yspeed += global.gravity/2;
 }
-
-var myself = 0;
-with(Character)
-    myself = id;
-
-draw_text_ext("riptide rush tastes like one of those cheap goo-filled or juice-filled grape-like or citrus-like gummy candies that has a very artificial edge when you first taste it but then the aftertaste kicks in and it's just mildly pleasant all around, even on subsequent sips", myself.x, myself.y, 800-myself.x, 800, 24);

@@ -1,7 +1,9 @@
-use glium::{Surface, implement_vertex, uniform};
-use glium::texture::SrgbTexture2d;
+use glium::{implement_vertex, uniform};
+use glium::texture::{SrgbTexture2d, DepthTexture2d};
 use glium::uniforms::{Sampler, MinifySamplerFilter, MagnifySamplerFilter};
 use std::rc::Rc;
+
+use glium::Surface as _;
 
 use super::*;
 
@@ -57,26 +59,33 @@ pub (super) struct SpriteSheet {
     texture: SrgbTexture2d,
 }
 
-#[derive(Debug)]
-pub (super) struct DrawEvent {
-    matrix: [[f32; 4]; 4],
-    spritesheet: u64,
-    imageindex: u64
+pub (super) struct Surface {
+    dims : (u32, u32),
+    rgba : SrgbTexture2d,
+    depth : DepthTexture2d,
 }
 
-#[derive(Debug)]
-pub (super) struct TextDrawEvent {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    size : f32,
-    text : String,
-    color : [f32; 4],
+impl Surface {
+    pub (crate) fn new(display : &glium::Display, (w, h) : (u32, u32)) -> Surface
+    {
+        let rgba = SrgbTexture2d::empty(display, w, h).unwrap();
+        let depth = DepthTexture2d::empty(display, w, h).unwrap();
+        let mut target = glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(display, &rgba, &depth).unwrap();
+        target.clear_color_srgb_and_depth((0.0, 0.0, 0.0, 0.0), 1.0);
+        Surface{dims : (w, h), rgba, depth}
+    }
+    pub (crate) fn as_framebuffer<'a>(&'a self, display : &glium::Display) -> glium::framebuffer::SimpleFrameBuffer<'a>
+    {
+        glium::framebuffer::SimpleFrameBuffer::with_depth_buffer(display, &self.rgba, &self.depth).unwrap()
+    }
+    fn clear_color_infinite_depth(&self, display : &glium::Display, color : (f32, f32, f32, f32))
+    {
+        self.as_framebuffer(display).clear_color_srgb_and_depth(color, 1.0);
+    }
 }
 
 #[derive(Debug, Clone)]
-pub (super) struct TextDrawData {
+struct TextDrawData {
     tex_coords: glyph_brush::rusttype::Rect<f32>,
     draw_coords: glyph_brush::rusttype::Rect<i32>,
     color : [f32; 4],
@@ -149,7 +158,7 @@ impl TextSystem
         self.glyph_brush.resize_texture(self.texture_dimensions.0, self.texture_dimensions.1);
         self.texture = Texture2d::empty_with_format(&self.display, U8U8U8U8, MipmapsOption::NoMipmap, self.texture_dimensions.0, self.texture_dimensions.1).unwrap();
     }
-    pub (crate) fn push_event(&mut self, text : &String, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
+    pub (crate) fn draw_text(&mut self, parent : &Engine, text : &String, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
     {
         self.glyph_brush.queue(glyph_brush::Section {
             text,
@@ -159,6 +168,29 @@ impl TextSystem
             color,
             ..glyph_brush::Section::default()
         });
+        
+        let mut succeeded = false;
+        while !succeeded
+        {
+            succeeded = true;
+            match self.process_queue()
+            {
+                Ok(glyph_brush::BrushAction::Draw(quads)) =>
+                {
+                    self.draw_quads(&quads, parent);
+                    self.cached_draw = quads;
+                }
+                Ok(glyph_brush::BrushAction::ReDraw) =>
+                {
+                    self.draw_quads(&self.cached_draw, parent);
+                }
+                Err(glyph_brush::BrushError::TextureTooSmall { suggested }) =>
+                {
+                    succeeded = false;
+                    self.resize_texture(suggested);
+                }
+            }
+        }
     }
     fn process_queue(&mut self) -> Result<glyph_brush::BrushAction<TextDrawData>, glyph_brush::BrushError> 
     {
@@ -168,8 +200,9 @@ impl TextSystem
             TextDrawData::new
         ) 
     }
-    fn draw_quads(&self, quads : &Vec<TextDrawData>, parent : &Engine, target : &mut glium::Frame, matrix_view : &[[f32; 4]; 4])
+    fn draw_quads(&self, quads : &Vec<TextDrawData>, parent : &Engine)
     {
+        let mut target = parent.get_real_draw_target();
         for quad in quads
         {
             let tex_rect = quad.tex_coords;
@@ -192,7 +225,7 @@ impl TextSystem
             let matrix_command = m4mult(&event_matrix, &matrix_origin);
             
             let uniforms = uniform! {
-                matrix_view : *matrix_view,
+                matrix_view : parent.matrix_view.clone(),
                 matrix_command : matrix_command,
                 tex_topleft : [tex_rect.min.x, tex_rect.min.y],//quad.0.min.x, quad.0.min.y],
                 tex_bottomright : [tex_rect.max.x, tex_rect.max.y],//quad.0.max.x, quad.0.max.y],
@@ -283,6 +316,10 @@ impl Engine {
         index
     }
     
+    pub (super) fn draw_text(&mut self, text : &String, x :f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
+    {
+        self.text_system.borrow_mut().draw_text(&self, &text, x, y, w, h, size, color);
+    }
     pub (super) fn draw_sprite(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32)
     {
         self.draw_sprite_scaled(spriteindex, imageindex, x, y, 1.0, 1.0)
@@ -316,86 +353,109 @@ impl Engine {
     }
     pub (super) fn draw_sprite_transformed(&mut self, spriteindex : u64, imageindex : u64, matrix : [[f32; 4]; 4])
     {
-        self.draw_events.push(DrawEvent{matrix, spritesheet : spriteindex, imageindex : imageindex})
+        let spritesheet = self.sprites.get(&spriteindex).unwrap();
+        let texture = &spritesheet.texture;
+        
+        let tex_w = texture.width() as f32;
+        let tex_h = texture.height() as f32;
+        
+        let image = spritesheet.images.get(imageindex as usize % spritesheet.images.len()).unwrap();
+        let x_dim = (image.bottomright.0 - image.topleft.0) as f32;
+        let y_dim = (image.bottomright.1 - image.topleft.1) as f32;
+        let xorigin = (image.origin.0) as f32;
+        let yorigin = (image.origin.1) as f32;
+        
+        let matrix_origin = [
+            [x_dim, 0.0, 0.0, 0.0],
+            [0.0, -y_dim, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-xorigin, yorigin, 0.0, 1.0],
+        ];
+        let matrix_command = m4mult(&matrix, &matrix_origin);
+        
+        let uniforms = uniform! {
+            matrix_view : self.matrix_view,
+            matrix_command : matrix_command,
+            tex_topleft : [image.topleft.0 as f32 / tex_w, image.topleft.1 as f32 / tex_h],
+            tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
+            color_multiply : [1.0, 1.0, 1.0, 1.0f32],
+            tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
+        };
+        self.get_real_draw_target().draw(&self.vertex_buffer, &self.indices, &self.current_program, &uniforms, &glium::DrawParameters
+        {
+            blend : glium::Blend::alpha_blending(),
+            ..Default::default()
+        }).unwrap();
     }
     
-    pub (crate) fn render(&mut self)
+    pub (crate) fn get_real_draw_target<'a>(&'a self) -> glium::framebuffer::SimpleFrameBuffer<'a>
     {
-        let mut target = self.display.draw();
-        
-        target.clear_color(0.5, 0.5, 0.5, 1.0);
-        
+        let target = match self.surface_target.last()
+        {
+            Some(index) => self.surfaces.get(&index).unwrap(),
+            None => self.default_surface.as_ref().unwrap()
+        };
+        target.as_framebuffer(&self.display)
+    }
+    
+    pub (crate) fn render_begin(&mut self)
+    {
+        let target = self.display.draw();
         let dims = target.get_dimensions();
-        let x_dim = dims.0 as f32;
-        let y_dim = dims.1 as f32;
         
-        let matrix_view = [
-            [2.0/x_dim, 0.0, 0.0, 0.0],
-            [0.0, -2.0/y_dim, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [-1.0, 1.0, 0.0, 1.0f32],
-        ];
-        
-        for event in self.draw_events.drain(..)
+        if let Some(default_surface) = &self.default_surface
         {
-            let spritesheet = self.sprites.get(&event.spritesheet).unwrap();
-            let texture = &spritesheet.texture;
-            
-            let tex_w = texture.width() as f32;
-            let tex_h = texture.height() as f32;
-            
-            let image = spritesheet.images.get(event.imageindex as usize % spritesheet.images.len()).unwrap();
-            let x_dim = (image.bottomright.0 - image.topleft.0) as f32;
-            let y_dim = (image.bottomright.1 - image.topleft.1) as f32;
-            let xorigin = (image.origin.0) as f32;
-            let yorigin = (image.origin.1) as f32;
-            
-            let matrix_origin = [
-                [x_dim, 0.0, 0.0, 0.0],
-                [0.0, -y_dim, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [-xorigin, yorigin, 0.0, 1.0],
-            ];
-            let matrix_command = m4mult(&event.matrix, &matrix_origin);
-            
-            let uniforms = uniform! {
-                matrix_view : matrix_view,
-                matrix_command : matrix_command,
-                tex_topleft : [image.topleft.0 as f32 / tex_w, image.topleft.1 as f32 / tex_h],
-                tex_bottomright : [image.bottomright.0 as f32 / tex_w, image.bottomright.1 as f32 / tex_h],
-                color_multiply : [1.0, 1.0, 1.0, 1.0f32],
-                tex : Sampler::new(texture).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
-            };
-            target.draw(&self.vertex_buffer, &self.indices, &self.current_program, &uniforms, &glium::DrawParameters
+            if default_surface.dims == dims
             {
-                blend : glium::Blend::alpha_blending(),
-                ..Default::default()
-            }).unwrap();
-        }
-        
-        let mut succeeded = false;
-        while !succeeded
-        {
-            succeeded = true;
-            match self.text_system.process_queue()
-            {
-                Ok(glyph_brush::BrushAction::Draw(quads)) =>
-                {
-                    self.text_system.draw_quads(&quads, &self, &mut target, &matrix_view);
-                    self.text_system.cached_draw = quads;
-                }
-                Ok(glyph_brush::BrushAction::ReDraw) =>
-                {
-                    self.text_system.draw_quads(&self.text_system.cached_draw, &self, &mut target, &matrix_view);
-                }
-                Err(glyph_brush::BrushError::TextureTooSmall { suggested }) =>
-                {
-                    succeeded = false;
-                    self.text_system.resize_texture(suggested);
-                }
+                default_surface.clear_color_infinite_depth(&self.display, (0.5, 0.5, 0.5, 1.0));
+                self.draw_target = Some(target);
+                self.draw_w = dims.0;
+                self.draw_h = dims.1;
+                self.matrix_view = [
+                    [2.0/dims.0 as f32, 0.0, 0.0, 0.0],
+                    [0.0, -2.0/dims.1 as f32, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [-1.0, 1.0, 0.0, 1.0f32],
+                ];
+                return;
             }
         }
+        self.default_surface =  Some(Surface::new(&self.display, target.get_dimensions()));
+        self.default_surface.as_ref().unwrap().clear_color_infinite_depth(&self.display, (0.5, 0.5, 0.5, 1.0));
+        self.draw_target = Some(target);
+    }
+    
+    pub (crate) fn render_finish(&mut self)
+    {
+        let target = self.draw_target.as_mut().unwrap();
         
-        target.finish().unwrap();
+        let matrix_view = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0f32],
+        ];
+        let matrix_command = [
+            [2.0, 0.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-1.0, -1.0, 0.0, 1.0f32],
+        ];
+        
+        let uniforms = uniform! {
+            matrix_view : matrix_view,
+            matrix_command : matrix_command,
+            tex_topleft : [0.0, 0.0f32],
+            tex_bottomright : [1.0, 1.0f32],
+            color_multiply : [1.0, 1.0, 1.0, 1.0f32],
+            tex : Sampler::new(&self.default_surface.as_ref().unwrap().rgba).minify_filter(MinifySamplerFilter::Nearest).magnify_filter(MagnifySamplerFilter::Nearest),
+        };
+        target.draw(&self.vertex_buffer, &self.indices, &self.current_program, &uniforms, &glium::DrawParameters
+        {
+            ..Default::default()
+        }).unwrap();
+        
+        target.set_finish().unwrap();
+        self.draw_target = None;
     }
 }

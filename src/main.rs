@@ -138,12 +138,21 @@ fn main()
         err_none_or_panic!(interpreter.restart(&gmc_step));
         step_until_end_maybe_panic(&mut interpreter);
         
+        if let Ok(mut engine) = engine.try_borrow_mut()
+        {
+            engine.render_begin();
+        }
+        else
+        {
+            panic!("error: failed to lock engine in mainloop");
+        }
+        
         err_none_or_panic!(interpreter.restart(&gmc_draw));
         step_until_end_maybe_panic(&mut interpreter);
         
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
-            engine.render();
+            engine.render_finish();
         }
         else
         {

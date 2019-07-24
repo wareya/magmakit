@@ -2,12 +2,13 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 
 # TODO
 
-- surface drawing, sampling from multiple textures in a single shader, etc
 - font load functions
-- text with internal formatting
-- buffer-based file access api
-- faucnet style networking api
+- surface drawing, sampling from multiple textures in a single shader, etc
+- load or write strings or byte arrays to files
+-- load some kind of markup?
 - simple sample-and-emitter audio system, no busses, mixer channels are tags
+- faucnet style networking api
+- text with internal formatting
 
 # License
 

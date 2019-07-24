@@ -170,7 +170,6 @@ impl Engine {
         };
         if to_wait > 0.0
         {
-            println!("fit");
             std::thread::sleep(duration_from_secs(to_wait));
             self.framelimiter_delta = self.target_frametime;
             self.framelimiter_check_desync = true;

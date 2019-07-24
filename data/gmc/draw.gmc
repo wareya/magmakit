@@ -18,4 +18,4 @@ var cursor_pos = mouse_position();
 draw_sprite_index(global.cursor_sprite, mouse_button_pressed(0), cursor_pos[0], cursor_pos[1]);
 
 draw_text(string(round(get_smooth_framerate()*100)/100) + "fps", 0, 0);
-draw_text(string(round(get_perceptual_framerate()*100)/100) + "fps", 0, 30);
+draw_text("feels like " + string(round(get_perceptual_framerate()*100)/100) + "fps", 0, 30);

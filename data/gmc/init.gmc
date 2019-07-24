@@ -155,10 +155,9 @@ globaldef entity_trace(mover, static, travel)
         var x_travel = try_x[0] - leading_point[0];
         var new_bbox_left = mover.bbox[0] + x_travel;
         var new_bbox_right = mover.bbox[2] + x_travel;
-        if(new_bbox_left < static.bbox[2] and new_bbox_right > static.bbox[0])
+        if(new_bbox_left <= static.bbox[2] and new_bbox_right >= static.bbox[0])
         {
             return {
-                //"contact" : try_x,
                 "travel" : vec2_subtract(try_x, leading_point),
                 "sqdist" : vec2_sqdist(try_x, leading_point),
                 "remain" : [new_leading_point[0] - try_x[0], 0],
@@ -167,17 +166,15 @@ globaldef entity_trace(mover, static, travel)
         }
     }
     
-    // wall
     if(try_y != 0)
     {
         try_y = try_y[0];
         var y_travel = try_y[1] - leading_point[1];
         var new_bbox_top = mover.bbox[1] + y_travel;
         var new_bbox_bottom = mover.bbox[3] + y_travel;
-        if(new_bbox_top < static.bbox[3] and new_bbox_bottom > static.bbox[1])
+        if(new_bbox_top <= static.bbox[3] and new_bbox_bottom >= static.bbox[1])
         {
             return {
-                //"contact" : try_y,
                 "travel" : vec2_subtract(try_y, leading_point),
                 "sqdist" : vec2_sqdist(try_y, leading_point),
                 "remain" : [0, new_leading_point[1] - try_y[1]],
@@ -274,4 +271,4 @@ for(var i = 0; i < 20; i++)
 print("----init.gmc has been run");
 mouse_cursor_disable();
 
-set_framerate(1000);
+set_framerate(250);

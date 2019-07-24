@@ -201,7 +201,7 @@ impl InputHandler {
     pub (crate) fn cycle(&mut self)
     {
         self.keys_down_previous = self.keys_down.clone();
-        self.mouse_buttons_previous = self.mouse_buttons_previous.clone();
+        self.mouse_buttons_previous = self.mouse_buttons.clone();
         self.mouse_delta = (0.0, 0.0);
         self.mouse_scroll_delta = (0.0, 0.0);
     }

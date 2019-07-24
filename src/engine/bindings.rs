@@ -333,6 +333,8 @@ impl Engine {
             val = 1.0;
         }
         self.target_frametime = 1.0/val;
+        self.framelimiter_reference = self.framelimiter_reset_reference_time;
+        self.framelimiter_count = 0;
         default_return()
     }
     fn binding_set_frametime(&mut self, mut args : Vec<Value>) -> Result<Value, String>

@@ -5,7 +5,7 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 - font load functions
 - surface drawing, sampling from multiple textures in a single shader, etc
 - load or write strings or byte arrays to files
--- load some kind of markup?
+-- load or write some kind of markup?
 - simple sample-and-emitter audio system, no busses, mixer channels are tags
 - faucnet style networking api
 - text with internal formatting

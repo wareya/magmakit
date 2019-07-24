@@ -15,7 +15,7 @@ with(Character)
 draw_text_ext("riptide rush tastes like one of those cheap goo-filled or juice-filled grape-like or citrus-like gummy candies that has a very artificial edge when you first taste it but then the aftertaste kicks in and it's just mildly pleasant all around, even on subsequent sips", myself.x, myself.y, 800-myself.x, 800, 24);
 
 var cursor_pos = mouse_position();
-draw_sprite_index(global.cursor_sprite, mouse_button_pressed(0), cursor_pos[0], cursor_pos[1]);
+draw_sprite_index(global.cursor_sprite, mouse_button_down(0), cursor_pos[0], cursor_pos[1]);
 
 draw_text(string(round(get_smooth_framerate()*100)/100) + "fps", 0, 0);
 draw_text("feels like " + string(round(get_perceptual_framerate()*100)/100) + "fps", 0, 30);

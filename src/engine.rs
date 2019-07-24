@@ -42,6 +42,7 @@ pub (crate) struct Engine {
     text_system: RefCell<TextSystem>,
     
     target_frametime: f64, // seconds
+    framelimiter_reset_reference_time: Option<std::time::Instant>,
     framelimiter_reference: Option<std::time::Instant>,
     framelimiter_count: u64,
     framelimiter_delta: f64,
@@ -97,6 +98,7 @@ impl Engine {
             text_system : RefCell::new(text_system),
             
             target_frametime : 0.008,
+            framelimiter_reset_reference_time : None,
             framelimiter_reference : None,
             framelimiter_count: 0,
             framelimiter_delta: 0.0,
@@ -132,7 +134,9 @@ impl Engine {
     {
         if self.framelimiter_reference.is_none()
         {
-            self.framelimiter_reference = Some(std::time::Instant::now());
+            let now = std::time::Instant::now();
+            self.framelimiter_reset_reference_time = Some(now);
+            self.framelimiter_reference = Some(now);
             self.framelimiter_count = 0;
             self.framelimiter_delta = self.target_frametime;
         }
@@ -171,11 +175,13 @@ impl Engine {
         if to_wait > 0.0
         {
             std::thread::sleep(duration_from_secs(to_wait));
+            self.framelimiter_reset_reference_time = Some(time_target);
             self.framelimiter_delta = self.target_frametime;
             self.framelimiter_check_desync = true;
         }
         else if -to_wait > tolerated_desync
         {
+            self.framelimiter_reset_reference_time = Some(time_actual);
             self.framelimiter_reference = Some(time_actual);
             self.framelimiter_count = 0;
             self.framelimiter_delta = self.target_frametime + -to_wait;

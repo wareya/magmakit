@@ -125,3 +125,11 @@ with(Character)
     
     yspeed += global.gravity/2;
 }
+
+if(mouse_button_pressed(0))
+{
+    if(get_target_framerate() == 250)
+        set_framerate(125);
+    else
+        set_framerate(250);
+}

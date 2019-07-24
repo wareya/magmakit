@@ -143,13 +143,13 @@ impl Engine {
     }
     pub (crate) fn cycle_framerate_limiter(&mut self)
     {
-        let tolerated_desync =
+        let tolerated_desync = // amount that the engine is allowed to miss the desired wakeup time by without resetting the framerate limiter
         if self.framelimiter_check_desync
         {
-            let tolerated_desync_min = 0.011;
-            if 0.75*self.target_frametime > tolerated_desync_min
+            let tolerated_desync_min = 0.011; // ms
+            if 0.66*self.target_frametime > tolerated_desync_min // or 0.66 of the desired frame time (gives 11ms for 60fps)
             {
-                0.75*self.target_frametime
+                0.66*self.target_frametime
             }
             else
             {

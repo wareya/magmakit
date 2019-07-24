@@ -140,14 +140,6 @@ globaldef entity_trace(mover, static, travel)
     var try_x = line_axis_intersect(leading_point, new_leading_point, facing_point, 1); // floor
     var try_y = line_axis_intersect(leading_point, new_leading_point, facing_point, 0); // wall
     
-    if(try_x != 0 and try_y != 0)
-    {
-        if(try_x[1] < try_y[1])
-            try_y = 0;
-        else
-            try_x = 0;
-    }
-    
     // floor
     if(try_x != 0)
     {
@@ -157,13 +149,15 @@ globaldef entity_trace(mover, static, travel)
         var new_bbox_right = mover.bbox[2] + x_travel;
         if(new_bbox_left <= static.bbox[2] and new_bbox_right >= static.bbox[0])
         {
-            return {
+            try_x = {
                 "travel" : vec2_subtract(try_x, leading_point),
                 "sqdist" : vec2_sqdist(try_x, leading_point),
                 "remain" : [new_leading_point[0] - try_x[0], 0],
                 "normal" : [0, -sign(travel[1])],
             };
         }
+        else
+            try_x = 0;
     }
     
     if(try_y != 0)
@@ -174,14 +168,19 @@ globaldef entity_trace(mover, static, travel)
         var new_bbox_bottom = mover.bbox[3] + y_travel;
         if(new_bbox_top <= static.bbox[3] and new_bbox_bottom >= static.bbox[1])
         {
-            return {
+            try_y = {
                 "travel" : vec2_subtract(try_y, leading_point),
                 "sqdist" : vec2_sqdist(try_y, leading_point),
                 "remain" : [0, new_leading_point[1] - try_y[1]],
                 "normal" : [-sign(travel[0]), 0],
             };
         }
+        else
+            try_y = 0;
     }
+    if(try_y == 0 or (try_x != 0 and try_x{sqdist} < try_y{sqdist}))
+        return try_x;
+    return try_y;
 }
 
 globaldef entity_trace_with_margin(mover, static, travel)
@@ -199,11 +198,13 @@ globaldef entity_trace_with_margin(mover, static, travel)
         result{sqdist} = 0;
         return result;
     }
+    print(result);
     
     var backup = vec2_scalar_mult(vec2_normal(travel), -margin);
     
     result{travel} = vec2_add(result{travel}, backup);
     result{sqdist} = vec2_sqlen(result{travel});
+    print(result);
     
     return result;
 }
@@ -213,8 +214,8 @@ obj Character {
     {
         far x = 64;
         far y = 64;
-        far xspeed = 0;
-        far yspeed = 0;
+        far xspeed = 5.7;
+        far yspeed = 3;
         far want_to_jump = false;
         far x_wish = 0;
         far on_ground = false;

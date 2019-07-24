@@ -1,6 +1,5 @@
 subdef find_shortest_trace()
 {
-    update_bbox(self);
     var shortest = 0;
 
     with (Tile)
@@ -22,7 +21,6 @@ def vec_pointwise_add(a, b)
 
 subdef touching_anything_relative(xoffset, yoffset)
 {
-    update_bbox(self);
     with (Tile)
         if(aabb_overlap(vec_pointwise_add(other.bbox, [xoffset, yoffset, xoffset, yoffset]), bbox))
             return true;
@@ -39,6 +37,7 @@ subdef solve_movement(travel)
         {
             x += travel[0];
             y += travel[1];
+            update_bbox(self);
             break;
         }
         
@@ -55,6 +54,7 @@ subdef solve_movement(travel)
         y += travel[1];
         
         travel = trace{remain};
+        update_bbox(self);
     }
     
     return touched_ground;
@@ -66,7 +66,7 @@ subdef touching_tile()
     
     with (Tile)
     {
-        if(entity_overlap(other, self))
+        if(aabb_overlap(other.bbox, self.bbox))
             return self;
     }
     return false;

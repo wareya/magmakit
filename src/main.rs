@@ -91,16 +91,12 @@ fn main()
     
     let mut closed = false;
     
-    use std::{thread, time};
-    
-    let frametime = time::Duration::from_millis(8);
-    
     while !closed
     {
-        let frame_start = time::Instant::now();
-        
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
+            engine.check_init_framerate_limiter();
+            
             engine.input_handler.cycle();
             
             events_loop.poll_events(|event|
@@ -154,17 +150,11 @@ fn main()
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
             engine.render_finish();
+            engine.cycle_framerate_limiter();
         }
         else
         {
             panic!("error: failed to lock engine in mainloop");
-        }
-        
-        let elapsed = frame_start.elapsed();
-        
-        if let Some(remaining) = frametime.checked_sub(elapsed)
-        {
-            thread::sleep(remaining);
         }
     }
 }

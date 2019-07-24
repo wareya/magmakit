@@ -320,6 +320,103 @@ impl Engine {
         let val = pop_front!(args, Number)?;
         Ok(Value::Number(val.sqrt()))
     }
+    
+    fn binding_set_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to set_framerate()".to_string());
+        }
+        let mut val = pop_front!(args, Number)?;
+        if val < 1.0
+        {
+            val = 1.0;
+        }
+        self.target_frametime = 1.0/val;
+        default_return()
+    }
+    fn binding_set_frametime(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to set_frametime()".to_string());
+        }
+        let mut val = pop_front!(args, Number)?;
+        if val < 1.0
+        {
+            val = 1.0;
+        }
+        self.target_frametime = val;
+        default_return()
+    }
+    fn binding_get_target_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_target_framerate()".to_string());
+        }
+        Ok(Value::Number(1.0/self.target_frametime))
+    }
+    fn binding_get_target_frametime(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_target_frametime()".to_string());
+        }
+        Ok(Value::Number(self.target_frametime))
+    }
+    fn binding_get_immediate_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_immediate_framerate()".to_string());
+        }
+        Ok(Value::Number(1.0/self.framelimiter_delta))
+    }
+    fn binding_get_smooth_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_smooth_framerate()".to_string());
+        }
+        Ok(Value::Number(1.0/(self.recent_deltas.iter().sum::<f64>() / self.recent_deltas.len() as f64)))
+    }
+    fn binding_get_perceptual_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_perceptual_framerate()".to_string());
+        }
+        let total_delta = self.recent_deltas.iter().sum::<f64>() as f64;
+        let broken_deltas = self.recent_deltas.iter().map(|x| x*x/total_delta/total_delta).collect::<Vec<_>>();
+        let avg_broken_delta = total_delta * broken_deltas.iter().sum::<f64>();
+        Ok(Value::Number(1.0/avg_broken_delta))
+    }
+    fn binding_get_frame_delta_secs(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_frame_delta_secs()".to_string());
+        }
+        Ok(Value::Number(self.framelimiter_delta))
+    }
+    fn binding_get_frame_delta_msecs(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to get_frame_delta_msecs()".to_string());
+        }
+        Ok(Value::Number(self.framelimiter_delta*1000.0))
+    }
+    fn binding_get_frame_delta_frames(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to get_frame_delta_frames()".to_string());
+        }
+        let mut val = pop_front!(args, Number)?;
+        Ok(Value::Number(val/self.framelimiter_delta))
+    }
     // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
     fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
     {
@@ -362,5 +459,16 @@ impl Engine {
         
         Engine::insert_binding(interpreter, engine, "mouse_cursor_enable", &Engine::binding_mouse_cursor_enable);
         Engine::insert_binding(interpreter, engine, "mouse_cursor_disable", &Engine::binding_mouse_cursor_disable);
+        
+        Engine::insert_binding(interpreter, engine, "set_framerate", &Engine::binding_set_framerate);
+        Engine::insert_binding(interpreter, engine, "set_frametime", &Engine::binding_set_frametime);
+        Engine::insert_binding(interpreter, engine, "get_target_framerate", &Engine::binding_get_target_framerate);
+        Engine::insert_binding(interpreter, engine, "get_target_frametime", &Engine::binding_get_target_frametime);
+        Engine::insert_binding(interpreter, engine, "get_immediate_framerate", &Engine::binding_get_immediate_framerate);
+        Engine::insert_binding(interpreter, engine, "get_smooth_framerate", &Engine::binding_get_smooth_framerate);
+        Engine::insert_binding(interpreter, engine, "get_perceptual_framerate", &Engine::binding_get_perceptual_framerate);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_secs", &Engine::binding_get_frame_delta_secs);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_msecs", &Engine::binding_get_frame_delta_msecs);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_frames", &Engine::binding_get_frame_delta_frames);
     }
 }

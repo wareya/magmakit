@@ -273,3 +273,5 @@ for(var i = 0; i < 20; i++)
 
 print("----init.gmc has been run");
 mouse_cursor_disable();
+
+set_framerate(1000);

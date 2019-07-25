@@ -198,13 +198,11 @@ globaldef entity_trace_with_margin(mover, static, travel)
         result{sqdist} = 0;
         return result;
     }
-    print(result);
     
     var backup = vec2_scalar_mult(vec2_normal(travel), -margin);
     
     result{travel} = vec2_add(result{travel}, backup);
     result{sqdist} = vec2_sqlen(result{travel});
-    print(result);
     
     return result;
 }
@@ -273,3 +271,6 @@ print("----init.gmc has been run");
 mouse_cursor_disable();
 
 set_framerate(250);
+
+globalvar font_mono = font_load("data/font/OxygenMono-Regular.ttf");
+

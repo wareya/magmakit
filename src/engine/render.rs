@@ -101,6 +101,9 @@ impl TextDrawData
 
 pub (super) struct TextSystem {
     glyph_brush : glyph_brush::GlyphBrush<'static, TextDrawData>,
+    current_font : u64,
+    font_index_counter : u64,
+    fonts : HashMap<u64, glyph_brush::FontId>,
     texture : glium::texture::Texture2d,
     texture_dimensions : (u32, u32),
     cached_draw : Vec<TextDrawData>,
@@ -122,7 +125,16 @@ impl TextSystem
         let texture_dimensions = glyph_brush.texture_dimensions();
         let texture = Texture2d::empty_with_format(display, U8U8U8U8, MipmapsOption::NoMipmap, texture_dimensions.0, texture_dimensions.1).unwrap();
         
-        TextSystem{glyph_brush, texture, texture_dimensions, cached_draw : Vec::new(), display: display.clone()}
+        TextSystem {
+            glyph_brush,
+            texture,
+            texture_dimensions,
+            current_font : 0,
+            font_index_counter : 1,
+            fonts : HashMap::new(),
+            cached_draw : Vec::new(),
+            display: display.clone()
+        }
     }
     fn update_texture(texture : &mut glium::texture::Texture2d, rect : glyph_brush::rusttype::Rect<u32>, tex_data : &[u8])
     {
@@ -160,12 +172,18 @@ impl TextSystem
     }
     pub (crate) fn draw_text(&mut self, parent : &Engine, text : &String, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
     {
+        let font = match self.current_font
+        {
+            0 => glyph_brush::FontId::default(),
+            id => *self.fonts.get(&id).unwrap()
+        };
         self.glyph_brush.queue(glyph_brush::Section {
             text,
             screen_position : (x, y),
             bounds : (w, h),
             scale : glyph_brush::rusttype::Scale::uniform(size),
             color,
+            font_id : font,
             ..glyph_brush::Section::default()
         });
         
@@ -286,6 +304,25 @@ impl Engine {
     pub (super) fn reset_program(&mut self)
     {
         self.current_program = Rc::clone(&self.default_program);
+    }
+    
+    pub (super) fn load_font(&mut self, fname : &str) -> u64
+    {
+        use std::io::Read as _;
+        let mut text_system = self.text_system.borrow_mut();
+        let index = text_system.font_index_counter;
+        let mut bytes = Vec::new();
+        open_file(&self.program_path, fname).unwrap().read_to_end(&mut bytes);
+        let id = text_system.glyph_brush.add_font_bytes(bytes);
+        text_system.fonts.insert(index, id);
+        text_system.font_index_counter += 1;
+        index
+    }
+    
+    pub (super) fn set_font(&mut self, id : u64)
+    {
+        let mut text_system = self.text_system.borrow_mut();
+        text_system.current_font = id;
     }
     
     pub (super) fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64

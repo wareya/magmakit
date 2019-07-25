@@ -140,6 +140,36 @@ impl Engine {
         
         Ok(build_custom(0, self.load_sprite_with_subimages(&filename, subimages_vec)))
     }
+    fn binding_font_load(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to font_load()".to_string());
+        }
+        let filename = pop_front!(args, Text)?;
+        
+        Ok(build_custom(2, self.load_font(&filename)))
+    }
+    fn binding_font_set(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to font_set()".to_string());
+        }
+        let font_index_wrapped = pop_front!(args, Custom)?;
+        let font_index = match_custom(font_index_wrapped, 2)?;
+        self.set_font(font_index);
+        default_return()
+    }
+    fn binding_font_reset(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 1 arguments to font_reset()".to_string());
+        }
+        self.set_font(0);
+        default_return()
+    }
     fn binding_draw_sprite(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 3
@@ -187,6 +217,32 @@ impl Engine {
         
         default_return()
     }
+    
+    fn binding_screen_size(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to screen_size()".to_string());
+        }
+        Ok(Value::Array(vec!(Value::Number(self.draw_w.into()), Value::Number(self.draw_h.into()))))
+    }
+    fn binding_screen_size_w(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to screen_size_w()".to_string());
+        }
+        Ok(Value::Number(self.draw_w.into()))
+    }
+    fn binding_screen_size_h(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 0
+        {
+            return Err("error: expected exactly 0 arguments to screen_size_h()".to_string());
+        }
+        Ok(Value::Number(self.draw_h.into()))
+    }
+    
     fn binding_key_down(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 1
@@ -442,11 +498,19 @@ impl Engine {
         Engine::insert_binding(interpreter, engine, "sprite_load", &Engine::binding_sprite_load);
         Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
         
+        Engine::insert_binding(interpreter, engine, "font_load", &Engine::binding_font_load);
+        Engine::insert_binding(interpreter, engine, "font_set", &Engine::binding_font_set);
+        Engine::insert_binding(interpreter, engine, "font_reset", &Engine::binding_font_reset);
+        
         Engine::insert_binding(interpreter, engine, "draw_text", &Engine::binding_draw_text);
         Engine::insert_binding(interpreter, engine, "draw_text_ext", &Engine::binding_draw_text_ext);
         Engine::insert_binding(interpreter, engine, "draw_sprite", &Engine::binding_draw_sprite);
         Engine::insert_binding(interpreter, engine, "draw_sprite_scaled", &Engine::binding_draw_sprite_scaled);
         Engine::insert_binding(interpreter, engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
+        
+        Engine::insert_binding(interpreter, engine, "screen_size", &Engine::binding_screen_size);
+        Engine::insert_binding(interpreter, engine, "screen_size_w", &Engine::binding_screen_size_w);
+        Engine::insert_binding(interpreter, engine, "screen_size_h", &Engine::binding_screen_size_h);
         
         Engine::insert_binding(interpreter, engine, "key_down", &Engine::binding_key_down);
         Engine::insert_binding(interpreter, engine, "key_pressed", &Engine::binding_key_pressed);

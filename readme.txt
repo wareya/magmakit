@@ -2,13 +2,18 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 
 # TODO
 
-- font load functions
+- tagless globals (allcaps only) (gammakit)
+- shader control functions
 - surface drawing, sampling from multiple textures in a single shader, etc
-- load or write strings or byte arrays to files
--- load or write some kind of markup?
+- built in collision system (circles, n-gons. functions return a list of all possible results)
+- pack/unpack pseudo-json from strings (gammakit?)
 - simple sample-and-emitter audio system, no busses, mixer channels are tags
 - faucnet style networking api
+- load or write strings or byte arrays to files
+-- networking style buffer access with byte arrays?
 - text with internal formatting
+- interact with native DLLs...?
+- fun stuff like font size control, drawing with transforms, colors, etc etc etc... it is all endless
 
 # License
 

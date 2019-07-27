@@ -224,7 +224,7 @@ impl Engine {
         {
             return Err("error: expected exactly 0 arguments to screen_size()".to_string());
         }
-        Ok(Value::Array(vec!(Value::Number(self.draw_w.into()), Value::Number(self.draw_h.into()))))
+        Ok(Value::Array(Box::new(vec!(Value::Number(self.draw_w.into()), Value::Number(self.draw_h.into())))))
     }
     fn binding_screen_size_w(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
@@ -304,7 +304,7 @@ impl Engine {
             return Err("error: expected exactly 0 arguments to mouse_position()".to_string());
         }
         let (x, y) = self.input_handler.mouse_pos;
-        Ok(Value::Array(vec!(Value::Number(x), Value::Number(y))))
+        Ok(Value::Array(Box::new(vec!(Value::Number(x), Value::Number(y)))))
     }
     fn binding_mouse_position_x(&mut self, args : Vec<Value>) -> Result<Value, String>
     {

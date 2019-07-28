@@ -233,18 +233,17 @@ obj Character {
     }
 }
 
-globalvar gravity = 0.06;
+bare globalvar Gravity = 0.06;
 
-globalvar mychar;
-global.mychar = instance_create(Character);
+bare globalvar MyChar = instance_create(Character);
 
-globalvar tile_sprite = sprite_load_with_subimages("data/images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
-globalvar cursor_sprite = sprite_load_with_subimages("data/images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
+bare globalvar S_Tile = sprite_load_with_subimages("data/images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
+bare globalvar S_Cursor = sprite_load_with_subimages("data/images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
 
 obj Tile {
     def create()
     {
-        far sprite = global.tile_sprite;
+        far sprite = S_Tile;
     }
     def init(arg_x, arg_y)
     {
@@ -272,5 +271,5 @@ mouse_cursor_disable();
 
 set_framerate(250);
 
-globalvar font_mono = font_load("data/font/OxygenMono-Regular.ttf");
+bare globalvar FontMono = font_load("data/font/OxygenMono-Regular.ttf");
 

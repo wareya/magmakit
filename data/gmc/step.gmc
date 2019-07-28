@@ -74,7 +74,7 @@ subdef touching_tile()
 
 with(Character)
 {
-    yspeed += global.gravity/2;
+    yspeed += Gravity/2;
     
     
     if(key_pressed("E"))
@@ -123,7 +123,7 @@ with(Character)
     if(solve_movement([xspeed, yspeed]))
         on_ground = true;
     
-    yspeed += global.gravity/2;
+    yspeed += Gravity/2;
 }
 
 if(mouse_button_pressed(0))

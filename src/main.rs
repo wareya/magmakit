@@ -1,19 +1,11 @@
 use std::io::{Read, BufReader};
 use std::fs::File;
 
-macro_rules! err_none_or_panic { ( $x:expr )  =>
-{
-    match $x
-    {
-        Err(Some(err)) => panic!("{}", err),
-        _ => ()
-    }
-} }
-
 mod engine;
 use self::engine::*;
 
 mod input;
+mod collision;
 
 fn read_string(file : &mut BufReader<File>, fname : &str) -> Result<String, String>
 {

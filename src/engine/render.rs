@@ -312,7 +312,7 @@ impl Engine {
         let mut text_system = self.text_system.borrow_mut();
         let index = text_system.font_index_counter;
         let mut bytes = Vec::new();
-        open_file(&self.program_path, fname).unwrap().read_to_end(&mut bytes);
+        open_file(&self.program_path, fname).unwrap().read_to_end(&mut bytes).unwrap();
         let id = text_system.glyph_brush.add_font_bytes(bytes);
         text_system.fonts.insert(index, id);
         text_system.font_index_counter += 1;

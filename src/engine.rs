@@ -29,6 +29,7 @@ pub (crate) struct Engine {
     draw_h: u32,
     matrix_view: [[f32; 4]; 4],
     
+    #[allow(unused)]
     surface_index_counter : u64,
     surfaces: HashMap<u64, Surface>,
     surface_target: Vec<u64>,

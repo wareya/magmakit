@@ -2,9 +2,9 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 
 # TODO
 
-- tagless globals (must start with a capital letter) (gammakit)
 - shader control functions
-- surface drawing, sampling from multiple textures in a single shader, etc
+- surface drawing
+- sampling from multiple textures in a single shader
 - built in collision system (circles, n-gons. functions return a list of all possible results. transparent quadtree broadphase)
 - pack/unpack pseudo-json from strings
 

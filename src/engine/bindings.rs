@@ -161,7 +161,7 @@ impl Engine {
         self.set_font(font_index);
         default_return()
     }
-    fn binding_font_reset(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_font_reset(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -218,7 +218,7 @@ impl Engine {
         default_return()
     }
     
-    fn binding_screen_size(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_screen_size(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -226,7 +226,7 @@ impl Engine {
         }
         Ok(Value::Array(Box::new(vec!(Value::Number(self.draw_w.into()), Value::Number(self.draw_h.into())))))
     }
-    fn binding_screen_size_w(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_screen_size_w(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -234,7 +234,7 @@ impl Engine {
         }
         Ok(Value::Number(self.draw_w.into()))
     }
-    fn binding_screen_size_h(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_screen_size_h(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -407,7 +407,7 @@ impl Engine {
         self.target_frametime = val;
         default_return()
     }
-    fn binding_get_target_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_target_framerate(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -415,7 +415,7 @@ impl Engine {
         }
         Ok(Value::Number(1.0/self.target_frametime))
     }
-    fn binding_get_target_frametime(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_target_frametime(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -423,7 +423,7 @@ impl Engine {
         }
         Ok(Value::Number(self.target_frametime))
     }
-    fn binding_get_immediate_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_immediate_framerate(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -431,7 +431,7 @@ impl Engine {
         }
         Ok(Value::Number(1.0/self.framelimiter_delta))
     }
-    fn binding_get_smooth_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_smooth_framerate(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -439,7 +439,7 @@ impl Engine {
         }
         Ok(Value::Number(1.0/(self.recent_deltas.iter().sum::<f64>() / self.recent_deltas.len() as f64)))
     }
-    fn binding_get_perceptual_framerate(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_perceptual_framerate(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -450,7 +450,7 @@ impl Engine {
         let avg_broken_delta = total_delta * broken_deltas.iter().sum::<f64>();
         Ok(Value::Number(1.0/avg_broken_delta))
     }
-    fn binding_get_frame_delta_secs(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_frame_delta_secs(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -458,7 +458,7 @@ impl Engine {
         }
         Ok(Value::Number(self.framelimiter_delta))
     }
-    fn binding_get_frame_delta_msecs(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    fn binding_get_frame_delta_msecs(&mut self, args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 0
         {
@@ -472,7 +472,7 @@ impl Engine {
         {
             return Err("error: expected exactly 1 arguments to get_frame_delta_frames()".to_string());
         }
-        let mut val = pop_front!(args, Number)?;
+        let val = pop_front!(args, Number)?;
         Ok(Value::Number(val/self.framelimiter_delta))
     }
     // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.

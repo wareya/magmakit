@@ -370,13 +370,11 @@ fn rebalance_internal(parent : &mut NodeRef) -> bool
         let tall_node;
         if nodes[0].borrow().depth+1 < nodes[1].borrow().depth
         {
-            println!("left is short, time to die {} {}", nodes[0].borrow().depth, nodes[1].borrow().depth);
             short_node = Rc::clone(&nodes[0]);
             tall_node  = Rc::clone(&nodes[1]);
         }
         else if nodes[0].borrow().depth > nodes[1].borrow().depth+1
         {
-            println!("right is short, time to die {} {}", nodes[0].borrow().depth, nodes[1].borrow().depth);
             short_node = Rc::clone(&nodes[1]);
             tall_node  = Rc::clone(&nodes[0]);
         }
@@ -389,15 +387,17 @@ fn rebalance_internal(parent : &mut NodeRef) -> bool
             // FIXME: is this the right way to do this?
             let left_bvh_heuristic  = calculate_shared_bvh_heuristic(&nodes[0], &short_node);
             let right_bvh_heuristic = calculate_shared_bvh_heuristic(&nodes[1], &short_node);
-            if left_bvh_heuristic < right_bvh_heuristic
+            let left_shorter = nodes[0].borrow().depth < nodes[1].borrow().depth;
+            let right_shorter = nodes[0].borrow().depth > nodes[1].borrow().depth;
+            if !right_shorter && (left_shorter || left_bvh_heuristic < right_bvh_heuristic)
             {
                 let new_child = new_node_from_nodes(Rc::clone(&nodes[0]), short_node);
                 new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[1]));
             }
             else
             {
-                let new_child = new_node_from_nodes(Rc::clone(&nodes[1]), short_node);
-                new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[0]));
+                let new_child = new_node_from_nodes(short_node, Rc::clone(&nodes[1]));
+                new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
             }
         }
         else
@@ -423,7 +423,6 @@ fn rebalance(parent : &mut NodeRef)
 
 fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
 {
-    rebalance(parent);
     if parent.borrow().child.is_shape()
     {
         let old_node = Rc::clone(parent);
@@ -447,7 +446,7 @@ fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
             {
                 let mut new_child = Rc::clone(&nodes[1]);
                 insert_node(&mut new_child, new_node);
-                new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[0]));
+                new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
             }
         }
         else

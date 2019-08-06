@@ -446,30 +446,40 @@ fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
     }
     else
     {
-        let new_parent;
+        let mut greater_parent = false;
+        let mut new_parent = None;
         if let TreeChild::Nodes(nodes) = &parent.borrow().child
         {
             // FIXME: is this the right way to do this?
+            let center_bvh_heuristic = parent.borrow().bounds.bvh_heuristic(); // the field we would be breaking up
             let left_bvh_heuristic  = calculate_shared_bvh_heuristic(&nodes[0], &new_node);
             let right_bvh_heuristic = calculate_shared_bvh_heuristic(&nodes[1], &new_node);
-            if left_bvh_heuristic < right_bvh_heuristic
+            if left_bvh_heuristic < right_bvh_heuristic && left_bvh_heuristic < center_bvh_heuristic
             {
                 let mut new_child = Rc::clone(&nodes[0]);
-                insert_node(&mut new_child, new_node);
-                new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[1]));
+                insert_node(&mut new_child, Rc::clone(&new_node));
+                new_parent = Some(new_node_from_nodes(new_child, Rc::clone(&nodes[1])));
+            }
+            else if right_bvh_heuristic < center_bvh_heuristic
+            {
+                let mut new_child = Rc::clone(&nodes[1]);
+                insert_node(&mut new_child, Rc::clone(&new_node));
+                new_parent = Some(new_node_from_nodes(Rc::clone(&nodes[0]), new_child));
             }
             else
             {
-                let mut new_child = Rc::clone(&nodes[1]);
-                insert_node(&mut new_child, new_node);
-                new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
+                greater_parent = true;
             }
         }
         else
         {
             unreachable!();
         }
-        *parent = new_parent;
+        if greater_parent
+        {
+            new_parent = Some(new_node_from_nodes(Rc::clone(&parent), new_node));
+        }
+        *parent = new_parent.unwrap();
         rebalance(parent)
     }
 }
@@ -609,37 +619,44 @@ mod tests {
     fn test_insertions()
     {
         let mut world = World::new();
-        println!("adding first");
         let mut x = 16.0;
         let mut y = 16.0;
         world.add_static_16px_box(Point::from(x, y));
-        println!("adding second");
+        println!("{}", world.dump_rects());
         x += 16.0;
         world.add_static_16px_box(Point::from(x, y));
-        println!("adding third");
+        println!("{}", world.dump_rects());
         x += 16.0;
         y += 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         y += 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         y += 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         x += 48.0;
         y -= 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         x -= 32.0;
         y -= 32.0;
         x = 16.0;
         y = 32.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         y += 32.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         x = 96.0;
         y = 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         x -= 16.0;
         y += 16.0;
         world.add_static_16px_box(Point::from(x, y));
+        println!("{}", world.dump_rects());
         x = 16.0;
         y = 96.0;
         world.add_static_16px_box(Point::from(x, y));

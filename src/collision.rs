@@ -361,6 +361,9 @@ fn new_node_from_shape(shape : PositionedShape) -> NodeRef
     
     ret
 }
+
+const ALLOWED_DEPTH_DISBALANCE : usize = 1;
+
 fn rebalance_internal(parent : &mut NodeRef) -> bool
 {
     let new_parent;
@@ -368,12 +371,12 @@ fn rebalance_internal(parent : &mut NodeRef) -> bool
     {
         let short_node;
         let tall_node;
-        if nodes[0].borrow().depth+1 < nodes[1].borrow().depth
+        if nodes[0].borrow().depth+ALLOWED_DEPTH_DISBALANCE < nodes[1].borrow().depth
         {
             short_node = Rc::clone(&nodes[0]);
             tall_node  = Rc::clone(&nodes[1]);
         }
-        else if nodes[0].borrow().depth > nodes[1].borrow().depth+1
+        else if nodes[0].borrow().depth > nodes[1].borrow().depth+ALLOWED_DEPTH_DISBALANCE
         {
             short_node = Rc::clone(&nodes[1]);
             tall_node  = Rc::clone(&nodes[0]);
@@ -385,19 +388,32 @@ fn rebalance_internal(parent : &mut NodeRef) -> bool
         if let TreeChild::Nodes(nodes) = &tall_node.borrow().child
         {
             // FIXME: is this the right way to do this?
-            let left_bvh_heuristic  = calculate_shared_bvh_heuristic(&nodes[0], &short_node);
-            let right_bvh_heuristic = calculate_shared_bvh_heuristic(&nodes[1], &short_node);
-            let left_shorter = nodes[0].borrow().depth < nodes[1].borrow().depth;
-            let right_shorter = nodes[0].borrow().depth > nodes[1].borrow().depth;
-            if !right_shorter && (left_shorter || left_bvh_heuristic < right_bvh_heuristic)
+            let left_shorter = nodes[0].borrow().depth+(ALLOWED_DEPTH_DISBALANCE-1) < nodes[1].borrow().depth;
+            let right_shorter = nodes[0].borrow().depth > nodes[1].borrow().depth+(ALLOWED_DEPTH_DISBALANCE-1);
+            if left_shorter
             {
                 let new_child = new_node_from_nodes(Rc::clone(&nodes[0]), short_node);
                 new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[1]));
             }
-            else
+            else if right_shorter
             {
                 let new_child = new_node_from_nodes(short_node, Rc::clone(&nodes[1]));
                 new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
+            }
+            else
+            {
+                let left_bvh_heuristic  = calculate_shared_bvh_heuristic(&nodes[0], &short_node);
+                let right_bvh_heuristic = calculate_shared_bvh_heuristic(&nodes[1], &short_node);
+                if left_bvh_heuristic < right_bvh_heuristic
+                {
+                    let new_child = new_node_from_nodes(Rc::clone(&nodes[0]), short_node);
+                    new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[1]));
+                }
+                else
+                {
+                    let new_child = new_node_from_nodes(short_node, Rc::clone(&nodes[1]));
+                    new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
+                }
             }
         }
         else

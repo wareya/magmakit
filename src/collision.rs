@@ -339,16 +339,20 @@ fn new_node_from_nodes(left : NodeRef, right : NodeRef) -> NodeRef
         nodes[0].borrow_mut().parent = Rc::downgrade(&ret);
         nodes[1].borrow_mut().parent = Rc::downgrade(&ret);
     }
+    else
+    {
+        unreachable!();
+    }
     
     ret
 }
-fn new_node_from_shape(shape : PositionedShape) -> NodeRef
+fn new_node_from_shaperef(shaperef : ShapeRef) -> NodeRef
 {
-    let bounds = shape.aabb_positioned.fatten();
+    let bounds = shaperef.borrow().aabb_positioned.fatten();
     
     let ret = Rc::new(RefCell::new(TreeNode {
         bounds,
-        child : TreeChild::Shape(Rc::new(RefCell::new(shape))),
+        child : TreeChild::Shape(shaperef),
         parent : Weak::new(),
         leafs : 1,
         depth : 1,
@@ -358,8 +362,17 @@ fn new_node_from_shape(shape : PositionedShape) -> NodeRef
     {
         shape.borrow_mut().parent = Rc::downgrade(&ret);
     }
+    else
+    {
+        unreachable!();
+    }
     
     ret
+}
+fn new_node_from_shape(shape : PositionedShape) -> NodeRef
+{
+    let shaperef = Rc::new(RefCell::new(shape));
+    new_node_from_shaperef(shaperef)
 }
 
 const ALLOWED_DEPTH_DISBALANCE : usize = 1;
@@ -437,6 +450,99 @@ fn rebalance(parent : &mut NodeRef)
     }
 }
 
+fn remove_shape(shape : ShapeRef)
+{
+    let mut borrowed = shape.borrow_mut();
+    let mut parent = Weak::new();
+    std::mem::swap(&mut borrowed.parent, &mut parent);
+    drop(borrowed);
+    let interparent = parent.upgrade().unwrap();
+    let parent = interparent.borrow().parent.upgrade();
+    if let Some(mut parent) = parent
+    {
+        let mut new_node = 
+        if let TreeChild::Nodes(nodes) = &parent.borrow_mut().child
+        {
+            if Rc::ptr_eq(&nodes[0], &interparent)
+            {
+                Rc::clone(&nodes[1])
+            }
+            else
+            {
+                Rc::clone(&nodes[0])
+            }
+        }
+        else
+        {
+            unreachable!();
+        };
+        let mut parent_borrowed_mut = parent.borrow_mut();
+        
+        let new_borrowed = new_node.borrow();
+        parent_borrowed_mut.bounds = new_borrowed.bounds;
+        parent_borrowed_mut.leafs = new_borrowed.leafs;
+        parent_borrowed_mut.depth = new_borrowed.depth;
+        parent_borrowed_mut.child = match new_borrowed.child
+        {
+            TreeChild::Nodes(ref nodes) =>
+            {
+                let left = Rc::clone(&nodes[0]);
+                let right = Rc::clone(&nodes[1]);
+                left.borrow_mut().parent = Rc::downgrade(&parent);
+                right.borrow_mut().parent = Rc::downgrade(&parent);
+                TreeChild::Nodes([left, right])
+            },
+            TreeChild::Shape(ref shape) => TreeChild::Shape(Rc::clone(&shape))
+        };
+        // do not copy parent
+        drop(parent_borrowed_mut);
+        
+        let mut current = Rc::clone(&parent);
+        loop
+        {
+            let borrowed = current.borrow();
+            if let Some(parent) = &borrowed.parent.upgrade()
+            {
+                let mut parent = Rc::clone(&parent);
+                drop(borrowed);
+                rebalance(&mut parent);
+                recalculate(&mut parent);
+                current = parent;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        panic!("dunno what to do here lol\n{}", interparent.dump_rects());
+    }
+}
+
+fn recalculate(parent : &NodeRef)
+{
+    recalculate_aabb_node(&parent);
+    let mut borrowed_parent = parent.borrow_mut();
+    if let TreeChild::Nodes(nodes) = &borrowed_parent.child
+    {
+        let left_borrowed = nodes[0].borrow();
+        let right_borrowed = nodes[1].borrow();
+        let leafs = left_borrowed.leafs + right_borrowed.leafs;
+        let depth = 1 + std::cmp::max(left_borrowed.depth, right_borrowed.depth);
+        drop(left_borrowed);
+        drop(right_borrowed);
+        borrowed_parent.leafs = leafs;
+        borrowed_parent.depth = depth;
+    }
+    else
+    {
+        borrowed_parent.leafs = 1;
+    }
+}
+
+
 fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
 {
     if parent.borrow().child.is_shape()
@@ -446,9 +552,8 @@ fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
     }
     else
     {
-        let mut greater_parent = false;
-        let mut new_parent = None;
-        if let TreeChild::Nodes(nodes) = &parent.borrow().child
+        let parent_borrowed = parent.borrow();
+        if let TreeChild::Nodes(nodes) = &parent_borrowed.child
         {
             // FIXME: is this the right way to do this?
             let center_bvh_heuristic = parent.borrow().bounds.bvh_heuristic(); // the field we would be breaking up
@@ -458,34 +563,34 @@ fn insert_node(parent : &mut NodeRef, new_node : NodeRef)
             {
                 let mut new_child = Rc::clone(&nodes[0]);
                 insert_node(&mut new_child, Rc::clone(&new_node));
-                new_parent = Some(new_node_from_nodes(new_child, Rc::clone(&nodes[1])));
+                let new_parent = new_node_from_nodes(new_child, Rc::clone(&nodes[1]));
+                drop(parent_borrowed);
+                *parent = new_parent;
             }
             else if right_bvh_heuristic < center_bvh_heuristic
             {
                 let mut new_child = Rc::clone(&nodes[1]);
                 insert_node(&mut new_child, Rc::clone(&new_node));
-                new_parent = Some(new_node_from_nodes(Rc::clone(&nodes[0]), new_child));
+                let new_parent = new_node_from_nodes(Rc::clone(&nodes[0]), new_child);
+                drop(parent_borrowed);
+                *parent = new_parent;
             }
             else
             {
-                greater_parent = true;
+                drop(parent_borrowed);
+                *parent = new_node_from_nodes(Rc::clone(&parent), new_node);
             }
         }
         else
         {
             unreachable!();
         }
-        if greater_parent
-        {
-            new_parent = Some(new_node_from_nodes(Rc::clone(&parent), new_node));
-        }
-        *parent = new_parent.unwrap();
-        rebalance(parent)
+        rebalance(parent);
     }
 }
-fn insert_shape(parent : &mut NodeRef, new_shape : PositionedShape)
+fn insert_shape(parent : &mut NodeRef, new_shape : ShapeRef)
 {
-    let new_node = new_node_from_shape(new_shape);
+    let new_node = new_node_from_shaperef(new_shape);
     insert_node(parent, new_node)
 }
 
@@ -560,7 +665,15 @@ impl World {
             dynamic_tree : None
         }
     }
-    fn add_static_16px_box(&mut self, origin : Point)
+    fn remove_shape(&mut self, shapenum : u64)
+    {
+        if let Some(shape) = self.shapes.remove(&shapenum)
+        {
+            println!("removing {}", shapenum);
+            remove_shape(shape);
+        }
+    }
+    fn add_static_16px_box(&mut self, origin : Point) -> u64
     {
         let shape = Shape::Poly(Polygon{
             points : vec!(
@@ -574,25 +687,29 @@ impl World {
                 Point::from(16.0, 0.0),
             )
         });
+        let current_id = self.shape_counter;
+        self.shape_counter += 1;
         let mut positioned_shape = PositionedShape{
             aabb_raw : shape.calculate_raw_aabb(),
             aabb_positioned : shape.calculate_raw_aabb().translate(&origin),
             shape,
             origin,
             parent : Weak::new(),
-            id : self.shape_counter,
+            id : current_id,
             is_static : true,
         };
-        self.shape_counter += 1;
+        let shaperef = Rc::new(RefCell::new(positioned_shape));
+        self.shapes.insert(current_id, Rc::clone(&shaperef));
         
         if let Some(ref mut tree) = self.static_tree
         {
-            insert_shape(tree, positioned_shape);
+            insert_shape(tree, shaperef);
         }
         else
         {
-            self.static_tree = Some(new_node_from_shape(positioned_shape));
+            self.static_tree = Some(new_node_from_shaperef(shaperef));
         };
+        current_id
     }
     fn format(&self) -> String
     {
@@ -621,7 +738,7 @@ mod tests {
         let mut world = World::new();
         let mut x = 16.0;
         let mut y = 16.0;
-        world.add_static_16px_box(Point::from(x, y));
+        let first = world.add_static_16px_box(Point::from(x, y));
         println!("{}", world.dump_rects());
         x += 16.0;
         world.add_static_16px_box(Point::from(x, y));
@@ -659,8 +776,17 @@ mod tests {
         println!("{}", world.dump_rects());
         x = 16.0;
         y = 96.0;
-        world.add_static_16px_box(Point::from(x, y));
+        let last = world.add_static_16px_box(Point::from(x, y));
         println!("{}", world.dump_rects());
+        println!("leafs: {}", world.static_tree.as_ref().unwrap().borrow().leafs);
+        println!("removing the last rect");
+        world.remove_shape(last);
+        println!("{}", world.dump_rects());
+        println!("leafs: {}", world.static_tree.as_ref().unwrap().borrow().leafs);
+        println!("removing the first rect");
+        world.remove_shape(first);
+        println!("{}", world.dump_rects());
+        println!("leafs: {}", world.static_tree.as_ref().unwrap().borrow().leafs);
     }
     #[test]
     fn test_float_min_max()

@@ -14,7 +14,7 @@ winapi = "*"
 [profile.bench]
 codegen-units = 1
 opt-level = 's'
-debug = false
+debug = true
 incremental = true
 overflow-checks = false
 lto = false
@@ -22,7 +22,7 @@ lto = false
 [profile.release]
 codegen-units = 1
 opt-level = 's'
-debug = false
+debug = true
 incremental = true
 overflow-checks = false
 lto = false

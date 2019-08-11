@@ -68,9 +68,9 @@ impl Point {
     {
         Point{x, y}
     }
-    fn dot(&self, other : &Point) -> Point
+    fn dot(&self, other : &Point) -> f64
     {
-        Point{x : self.x*other.x, y : self.y*other.y}
+        self.x*other.x + self.y*other.y
     }
     fn normalize(&self) -> Point
     {
@@ -105,6 +105,10 @@ impl Point {
         self.x /= magnitude;
         self.y /= magnitude;
         self
+    }
+    fn times(self, scale : f64) -> Point
+    {
+        Point{x : self.x*scale, y : self.y*scale}
     }
     fn add(self, other : &Point) -> Point
     {
@@ -146,6 +150,94 @@ impl Point {
         self.y = float_max(self.y, other.y);
         self
     }
+    fn get_interpolant(&self, mid : &Point, other : &Point) -> f64
+    {
+        let abs_x_delta = (other.x - self.x).abs();
+        let abs_y_delta = (other.y - self.y).abs();
+        if abs_x_delta > abs_y_delta
+        {
+            (mid.x - self.x) / (other.x - self.x)
+        }
+        else
+        {
+            (mid.y - self.y) / (other.y - self.y)
+        }
+    }
+}
+
+impl std::cmp::PartialEq for Point
+{
+    fn eq(&self, other : &Self) -> bool
+    {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+#[inline]
+fn determinant_2x2(a : f64, b : f64, c : f64, d : f64) -> f64
+{
+    a*d - b*c
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Line {
+    start : Point,
+    end : Point
+}
+impl Line {
+    fn intersect_infinite(start_1 : &Point, end_1 : &Point, start_2 : &Point, end_2 : &Point) -> Point
+    {
+        let x1 = start_1.x;
+        let y1 = start_1.y;
+        let x2 = end_1.x;
+        let y2 = end_1.y;
+        let x3 = start_2.x;
+        let y3 = start_2.y;
+        let x4 = end_2.x;
+        let y4 = end_2.y;
+        
+        let a = determinant_2x2(x1, y1, x2, y2);
+        let b = determinant_2x2(x3, y3, x4, y4);
+        let c = determinant_2x2(x1 - x2, y1 - y2, x3 - x4, y3 - y4);
+        
+        let x = determinant_2x2(a, x1 - x2, b, x3 - x4) / c;
+        let y = determinant_2x2(a, y1 - y2, b, y3 - y4) / c;
+        
+        Point{x, y}
+    }
+    fn intersect_finite(start_1 : &Point, end_1 : &Point, start_2 : &Point, end_2 : &Point) -> Option<Point>
+    {
+        let ret = Line::intersect_infinite(start_1, end_1, start_2, end_2);
+        let left   = float_min(start_1.x, end_1.x);
+        let top    = float_min(start_1.y, end_1.y);
+        let right  = float_max(start_1.x, end_1.x);
+        let bottom = float_max(start_1.y, end_1.y);
+        
+        if ret.x < left || ret.x > right || ret.y < top || ret.y > bottom
+        {
+            None
+        }
+        else
+        {
+            Some(ret)
+        }
+    }
+    fn relative_dot_product(start_1 : &Point, end_1 : &Point, start_2 : &Point, end_2 : &Point) -> f64
+    {
+        end_1.sub(&start_1).dot(&end_2.sub(&start_2))
+    }
+    // polygons wind clockwise, and positive y is down - an edge from (0.0, 0.0) to (10.0, 0.0) has a normal of (0.0, -1.0)
+    fn as_badnormal(start : &Point, end : &Point) -> Point
+    {
+        let mut temp = start.sub(&end);
+        std::mem::swap(&mut temp.x, &mut temp.y);
+        temp.x = -temp.x;
+        temp
+    }
+    fn as_normal(start : &Point, end : &Point) -> Point
+    {
+        *Line::as_badnormal(start, end).normalize_mut()
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -153,6 +245,9 @@ struct AABB {
     minima : Point,
     maxima : Point
 }
+
+const FATTEN_AMOUNT : f64 = 16.0;
+const NODE_FATTEN_AMOUNT : f64 = 0.0;
 
 impl AABB {
     fn bvh_heuristic(&self) -> f64
@@ -179,18 +274,22 @@ impl AABB {
         self.maxima.maxima_mut(&other.maxima);
         self
     }
+    fn translation_union(&self, add : &Point) -> AABB
+    {
+        AABB{minima : self.minima.minima(&self.minima.add(add)), maxima : self.maxima.maxima(&self.maxima.add(add))}
+    }
     fn fatten(&self) -> AABB
     {
         AABB {
-            minima : self.minima.sub(&Point{x:1.0, y:1.0}),
-            maxima : self.maxima.add(&Point{x:1.0, y:1.0})
+            minima : self.minima.sub(&Point{x:FATTEN_AMOUNT, y:FATTEN_AMOUNT}),
+            maxima : self.maxima.add(&Point{x:FATTEN_AMOUNT, y:FATTEN_AMOUNT})
         }
     }
     fn fatten_node(&self) -> AABB
     {
         AABB {
-            minima : self.minima.sub(&Point{x:1.0, y:1.0}),
-            maxima : self.maxima.add(&Point{x:1.0, y:1.0})
+            minima : self.minima.sub(&Point{x:NODE_FATTEN_AMOUNT, y:NODE_FATTEN_AMOUNT}),
+            maxima : self.maxima.add(&Point{x:NODE_FATTEN_AMOUNT, y:NODE_FATTEN_AMOUNT})
         }
     }
     fn from_points(points : &[Point]) -> AABB
@@ -223,6 +322,13 @@ impl AABB {
     fn contained_by(&self, other : &AABB) -> bool
     {
         other.contains(self)
+    }
+    fn touches(&self, other : &AABB) -> bool
+    {
+        self .minima.x <= other.maxima.x &&
+        self .minima.y <= other.maxima.y &&
+        other.minima.x <= self .maxima.x &&
+        other.minima.y <= self .maxima.y
     }
     fn dump_rects(&self, depth : usize) -> String
     {
@@ -281,6 +387,108 @@ impl PositionedShape {
             self.aabb_positioned.fatten()
         }
     }
+}
+
+fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceInfo>
+{
+    let moving_borrowed = moving.borrow();
+    let fixed_borrowed = fixed.borrow();
+    
+    let moving_aabb = moving_borrowed.aabb_positioned.translation_union(&motion);
+    if !moving_aabb.touches(&fixed_borrowed.aabb_positioned)
+    {
+        return None;
+    }
+    let relative_position = moving_borrowed.origin.sub(&fixed_borrowed.origin);
+    match (&moving_borrowed.shape, &fixed_borrowed.shape)
+    {
+        (Shape::Poly(moving_polygon), Shape::Poly(fixed_polygon)) =>
+        {
+            // translated by relative position
+            let moving_points_translated = moving_polygon.points.iter().map(
+                |point| point.add(&moving_borrowed.origin.sub(&fixed_borrowed.origin))
+            ).collect::<Vec<_>>();
+            // for testing lines from moving polygon into fixed polygon
+            let moving_points_nudged = moving_polygon.points.iter().map(
+                |point| point.add(&motion)
+            ).collect::<Vec<_>>();
+            // for testing lines from fixed polygon into moving polygon
+            let fixed_points_nudged = fixed_polygon.points.iter().map(
+                |point| point.sub(&motion)
+            ).collect::<Vec<_>>();
+            
+            let mut valid_normal = None;
+            let mut closest_fraction = 1.0;
+            let i_max = moving_polygon.points.len();
+            let j_max = fixed_polygon.points.len();
+            for i in 0..i_max
+            {
+                let start = &moving_points_translated[i];
+                let end   = &moving_points_translated[(i+1) % i_max];
+                let nudged_start = &moving_points_nudged[i];
+                let nudged_end = &moving_points_nudged[(i+1) % i_max];
+                for j in 0..j_max
+                {
+                    let other_start = &fixed_polygon.points[j];
+                    let other_end = &fixed_polygon.points[(j+1) % j_max];
+                    
+                    // skip line pairs that are facing in the same general direction
+                    if Line::relative_dot_product(start, end, other_start, other_end) >= 0.0
+                    {
+                        continue;
+                    }
+                    
+                    let normal = Line::as_badnormal(other_start, other_end);
+                    macro_rules! handle_case { ( $a:expr, $b:expr, $c:expr, $d:expr ) =>
+                    {
+                        if let Some(point) = Line::intersect_finite($a, $b, $c, $d)
+                        {
+                            let fraction = $a.get_interpolant(&point, $a);
+                            if fraction < closest_fraction
+                            {
+                                closest_fraction = fraction;
+                                valid_normal = Some(normal);
+                            }
+                        }
+                    } };
+                    // trace moving points into fixed line
+                    handle_case!(start, nudged_start, other_start, other_end);
+                    handle_case!(end  , nudged_end  , other_start, other_end);
+                    
+                    let nudged_other_start = &fixed_points_nudged[i];
+                    let nudged_other_end = &fixed_points_nudged[(i+1) % i_max];
+                    
+                    // trace fixed points into moving line
+                    handle_case!(other_start, nudged_other_start, start, end);
+                    handle_case!(other_end  , nudged_other_end  , start, end);
+                }
+            }
+            if let Some(normal) = valid_normal
+            {
+                Some(TraceInfo {
+                    moving : Rc::clone(moving),
+                    fixed : Rc::clone(fixed),
+                    consumed_motion : motion.times(closest_fraction),
+                    normal,
+                    fraction : closest_fraction
+                })
+            }
+            else
+            {
+                None
+            }
+        }
+        _ => panic!("unimplemented circle trace")
+    }
+}
+
+#[derive(Debug)]
+struct TraceInfo {
+    moving : ShapeRef,
+    fixed : ShapeRef,
+    consumed_motion : Point,
+    normal : Point,
+    fraction : f64
 }
 
 type NodeRef = Rc<RefCell<TreeNode>>;
@@ -1083,5 +1291,44 @@ mod tests {
         assert_eq_float!(float_min(std::f64::INFINITY, std::f64::NEG_INFINITY), std::f64::NEG_INFINITY);
         
         assert_eq_float!(float_min(std::f64::INFINITY, std::f64::NEG_INFINITY), std::f64::NEG_INFINITY);
+    }
+    #[test]
+    fn test_line_stuff()
+    {
+        let a_start = Point::from(0.0, 0.0);
+        let a_end = Point::from(1.0, 0.5);
+        let b_start = Point::from(0.8, 0.0);
+        let b_end = Point::from(0.4, 0.8);
+        let c_start = Point::from(0.0, 0.0);
+        let c_end = Point::from(0.5, 1.1);
+        println!("{:?}", Line::intersect_infinite(&a_start, &a_end, &b_start, &b_end));
+        println!("{:?}", Line::intersect_infinite(&b_start, &b_end, &c_start, &c_end));
+        println!("{:?}", Line::intersect_finite(&b_start, &b_end, &c_start, &c_end));
+        
+        assert!(Line::as_normal(&Point::from(0.0, 0.0), &Point::from(10.0, 0.0)) == Point::from(0.0, -1.0));
+        // right and down
+        // normal right and up
+        let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(1.0, 1.0));
+        println!("{:?}", n_2);
+        assert!(n_2.x.signum() == 1.0);
+        assert!(n_2.y.signum() == -1.0);
+        // right and up
+        // normal left and up
+        let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(1.0, -1.0));
+        println!("{:?}", n_2);
+        assert!(n_2.x.signum() == -1.0);
+        assert!(n_2.y.signum() == -1.0);
+        // left and up
+        // normal left and down
+        let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(-1.0, -1.0));
+        println!("{:?}", n_2);
+        assert!(n_2.x.signum() == -1.0);
+        assert!(n_2.y.signum() == 1.0);
+        // left and down
+        // normal right and down
+        let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(-1.0, 1.0));
+        println!("{:?}", n_2);
+        assert!(n_2.x.signum() == 1.0);
+        assert!(n_2.y.signum() == 1.0);
     }
 }

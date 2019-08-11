@@ -389,6 +389,63 @@ impl PositionedShape {
     }
 }
 
+fn line_circle_intersection(radius : f64, from : &Point, delta : &Point) -> Option<(Point, f64)>
+{
+    let to = from.add(delta);
+    let x1 = from.x;
+    let y1 = from.y;
+    let x2 = to.x;
+    let y2 = to.y;
+    
+    let dx = x2-x1;
+    let dy = y2-y1;
+    let dr2 = dx*dx + dy*dy;
+    
+    #[allow(non_snake_case)]
+    let D = determinant_2x2(x1, x2, y1, y2);
+    let semi_discriminant = radius*radius * dr2 - D*D;
+    
+    if semi_discriminant < 0.0
+    {
+        return None;
+    }
+    
+    let ysign = if y2 > y1 { 1.0 } else { -1.0 };
+    let discriminant = semi_discriminant.sqrt();
+    let dxs = dx / dr2;
+    let dys = dy / dr2;
+    
+    let x_base =  D * dys;
+    let y_base = -D * dxs;
+    
+    let x_discrim = dxs * discriminant;
+    let y_discrim = (dys * discriminant).abs();
+    
+    let point_a = Point::from(x_base + ysign*x_discrim, y_base + y_discrim);
+    let point_b = Point::from(x_base - ysign*x_discrim, y_base - y_discrim);
+    
+    let fraction_a = Line::get_interpolant(from, &point_a, &to);
+    let fraction_b = Line::get_interpolant(from, &point_b, &to);
+    
+    let a_is_valid = fraction_a >= 0.0 && fraction_a <= 1.0 && delta.dot(&point_a) < 0.0;
+    let b_is_valid = fraction_b >= 0.0 && fraction_b <= 1.0 && delta.dot(&point_b) < 0.0;
+    
+    // coincidentally, a and b cannot both be valid at the same time (due to the dot product test) so we don't have to test which is closer
+    
+    if a_is_valid
+    {
+        Some((point_a, fraction_a))
+    }
+    else if b_is_valid
+    {
+        Some((point_b, fraction_b))
+    }
+    else
+    {
+        None
+    }
+}
+
 fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceInfo>
 {
     let moving_borrowed = moving.borrow();
@@ -481,70 +538,27 @@ fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceI
         (Shape::Circle(moving_circle), Shape::Circle(fixed_circle)) =>
         {
             let combined_radius = moving_circle.radius + fixed_circle.radius;
-            let point_1 = 
+            let point = 
                 moving_borrowed.origin
                 .sub(&fixed_borrowed.origin)
                 .add(&moving_circle.origin_offset)
                 .sub(&fixed_circle.origin_offset);
             // casting from point into expanded target circle at origin
-            let point_2 = point_1.add(&motion);
             
-            let x1 = point_1.x;
-            let y1 = point_1.y;
-            let x2 = point_2.x;
-            let y2 = point_2.y;
-            
-            let dx = x2-x1;
-            let dy = y2-y1;
-            let dr2 = dx*dx + dy*dy;
-            
-            #[allow(non_snake_case)]
-            let D = determinant_2x2(x1, x2, y1, y2);
-            let semi_discriminant = combined_radius*combined_radius*dr2  - D*D;
-            
-            if semi_discriminant < 0.0
+            if let Some((normal, fraction)) = line_circle_intersection(combined_radius, &point, &motion)
             {
-                return None;
-            }
-            
-            let ysign = if y2 > y1 { 1.0 } else { -1.0 };
-            let discriminant = semi_discriminant.sqrt();
-            let dxs = dx / dr2;
-            let dys = dy / dr2;
-            
-            let x_base =  D * dys;
-            let y_base = -D * dxs;
-            
-            let x_discrim = dxs * discriminant / dr2;
-            let y_discrim = (dys * discriminant).abs() / dr2;
-            
-            let point_a = Point::from(x_base + ysign*x_discrim, y_base + y_discrim);
-            let point_b = Point::from(x_base - ysign*x_discrim, y_base - y_discrim);
-            
-            let fraction_a = Line::get_interpolant(&point_1, &point_a, &point_2);
-            let fraction_b = Line::get_interpolant(&point_1, &point_b, &point_2);
-            
-            let (normal, fraction) =
-            if fraction_a < 0.0 && fraction_a > 1.0 && fraction_b < 0.0 && fraction_b > 1.0
-            {
-                return None;
-            }
-            else if fraction_a < fraction_b
-            {
-                (point_a.normalize(), fraction_a)
+                Some(TraceInfo {
+                    moving : Rc::clone(moving),
+                    fixed : Rc::clone(fixed),
+                    consumed_motion : motion.times(fraction),
+                    normal : normal.normalize(),
+                    fraction
+                })
             }
             else
             {
-                (point_b.normalize(), fraction_b)
-            };
-            
-            Some(TraceInfo {
-                moving : Rc::clone(moving),
-                fixed : Rc::clone(fixed),
-                consumed_motion : motion.times(fraction),
-                normal,
-                fraction
-            })
+                None
+            }
         }
         _ => panic!("unimplemented circle-polygon trace")
     }
@@ -1259,6 +1273,9 @@ impl World {
 #[cfg(test)]
 mod tests {
     use super::*;
+    macro_rules! assert_nearly_equal {
+        ( $a:expr, $b:expr ) => { assert!(($a-$b).abs() < 0.00001) }
+    }
     #[test]
     fn test_insertions()
     {
@@ -1369,34 +1386,103 @@ mod tests {
         let b_end = Point::from(0.4, 0.8);
         let c_start = Point::from(0.0, 0.0);
         let c_end = Point::from(0.5, 1.1);
-        println!("{:?}", Line::intersect_infinite(&a_start, &a_end, &b_start, &b_end));
-        println!("{:?}", Line::intersect_infinite(&b_start, &b_end, &c_start, &c_end));
-        println!("{:?}", Line::intersect_finite(&b_start, &b_end, &c_start, &c_end));
+        
+        let res = Line::intersect_infinite(&a_start, &a_end, &b_start, &b_end);
+        assert_nearly_equal!(res.x, 0.64);
+        assert_nearly_equal!(res.y, 0.32);
+        
+        let res = Line::intersect_infinite(&b_start, &b_end, &c_start, &c_end);
+        assert_nearly_equal!(res.x, 0.380952380952381);
+        assert_nearly_equal!(res.y, 0.8380952380952382);
+        
+        let res = Line::intersect_finite(&b_start, &b_end, &c_start, &c_end);
+        assert!(res.is_none());
         
         assert!(Line::as_normal(&Point::from(0.0, 0.0), &Point::from(10.0, 0.0)) == Point::from(0.0, -1.0));
+        
         // right and down
         // normal right and up
         let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(1.0, 1.0));
-        println!("{:?}", n_2);
-        assert!(n_2.x.signum() == 1.0);
-        assert!(n_2.y.signum() == -1.0);
+        assert_nearly_equal!(n_2.x, 0.7071067811865475);
+        assert_nearly_equal!(n_2.y, -0.7071067811865475);
         // right and up
         // normal left and up
         let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(1.0, -1.0));
-        println!("{:?}", n_2);
-        assert!(n_2.x.signum() == -1.0);
-        assert!(n_2.y.signum() == -1.0);
+        assert_nearly_equal!(n_2.x, -0.7071067811865475);
+        assert_nearly_equal!(n_2.y, -0.7071067811865475);
         // left and up
         // normal left and down
         let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(-1.0, -1.0));
-        println!("{:?}", n_2);
-        assert!(n_2.x.signum() == -1.0);
-        assert!(n_2.y.signum() == 1.0);
+        assert_nearly_equal!(n_2.x, -0.7071067811865475);
+        assert_nearly_equal!(n_2.y, 0.7071067811865475);
         // left and down
         // normal right and down
         let n_2 = Line::as_normal(&Point::from(0.0, 0.0), &Point::from(-1.0, 1.0));
-        println!("{:?}", n_2);
-        assert!(n_2.x.signum() == 1.0);
-        assert!(n_2.y.signum() == 1.0);
+        assert_nearly_equal!(n_2.x, 0.7071067811865475);
+        assert_nearly_equal!(n_2.y, 0.7071067811865475);
+    }
+    
+    #[test]
+    fn test_circle_stuff()
+    {
+        macro_rules! assert_result_some {
+            ( $result:expr, $normal_x:expr, $normal_y:expr, $fraction:expr ) =>
+            {
+                match $result
+                {
+                    Some((Point{x, y}, fraction)) =>
+                    {
+                        assert_nearly_equal!(x, $normal_x);
+                        assert_nearly_equal!(y, $normal_y);
+                        assert_nearly_equal!(fraction, $fraction);
+                    }
+                    _ => assert!($result.is_some())
+                }
+            }
+        };
+        macro_rules! assert_result_none {
+            ( $result:expr ) => { assert!($result.is_none()) }
+        };
+        
+        assert_result_some!(line_circle_intersection(1.0, &Point::from(-5.0, 0.0), &Point::from(10.0, 0.0)), -1.0, 0.0, 0.4);
+        
+        assert_result_none!(line_circle_intersection(1.0, &Point::from(0.0, 0.0), &Point::from(10.0, 0.0)));
+        assert_result_none!(line_circle_intersection(1.0, &Point::from(0.0, 0.0), &Point::from(0.0, 10.0)));
+        assert_result_none!(line_circle_intersection(1.0, &Point::from(0.0, 0.0), &Point::from(-10.0, 0.0)));
+        assert_result_none!(line_circle_intersection(1.0, &Point::from(0.0, 0.0), &Point::from(0.0, -10.0)));
+        
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(10.0, 0.0), &Point::from(-10.0, 0.0)),
+            1.0, 0.0, 0.9
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(0.0, 10.0), &Point::from(0.0, -10.0)),
+            -0.0, 1.0, 0.9
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(-10.0, 0.0), &Point::from(10.0, 0.0)),
+            -1.0, 0.0, 0.9
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(0.0, -10.0), &Point::from(0.0, 10.0)),
+            0.0, -1.0, 0.9
+        );
+        
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(1.0, 1.0), &Point::from(-1.0, -1.0)),
+            0.7071067811865476, 0.7071067811865476, 0.2928932188134524
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(1.0, -1.0), &Point::from(-1.0, 1.0)),
+            0.7071067811865476, -0.7071067811865476, 0.2928932188134524
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(-1.0, 1.0), &Point::from(1.0, -1.0)),
+            -0.7071067811865476, 0.7071067811865476, 0.2928932188134524
+        );
+        assert_result_some!(
+            line_circle_intersection(1.0, &Point::from(-1.0, -1.0), &Point::from(1.0, 1.0)),
+            -0.7071067811865476, -0.7071067811865476, 0.2928932188134524
+        );
     }
 }

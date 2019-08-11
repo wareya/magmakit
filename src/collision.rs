@@ -150,19 +150,6 @@ impl Point {
         self.y = float_max(self.y, other.y);
         self
     }
-    fn get_interpolant(&self, mid : &Point, other : &Point) -> f64
-    {
-        let abs_x_delta = (other.x - self.x).abs();
-        let abs_y_delta = (other.y - self.y).abs();
-        if abs_x_delta > abs_y_delta
-        {
-            (mid.x - self.x) / (other.x - self.x)
-        }
-        else
-        {
-            (mid.y - self.y) / (other.y - self.y)
-        }
-    }
 }
 
 impl std::cmp::PartialEq for Point
@@ -237,6 +224,19 @@ impl Line {
     fn as_normal(start : &Point, end : &Point) -> Point
     {
         *Line::as_badnormal(start, end).normalize_mut()
+    }
+    fn get_interpolant(this : &Point, mid : &Point, other : &Point) -> f64
+    {
+        let abs_x_delta = (other.x - this.x).abs();
+        let abs_y_delta = (other.y - this.y).abs();
+        if abs_x_delta > abs_y_delta
+        {
+            (mid.x - this.x) / (other.x - this.x)
+        }
+        else
+        {
+            (mid.y - this.y) / (other.y - this.y)
+        }
     }
 }
 
@@ -404,12 +404,12 @@ fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceI
     {
         (Shape::Poly(moving_polygon), Shape::Poly(fixed_polygon)) =>
         {
-            // translated by relative position
+            // translated by relative position (fixed polygon is treated as origin)
             let moving_points_translated = moving_polygon.points.iter().map(
                 |point| point.add(&moving_borrowed.origin.sub(&fixed_borrowed.origin))
             ).collect::<Vec<_>>();
             // for testing lines from moving polygon into fixed polygon
-            let moving_points_nudged = moving_polygon.points.iter().map(
+            let moving_points_nudged = moving_points_translated.iter().map(
                 |point| point.add(&motion)
             ).collect::<Vec<_>>();
             // for testing lines from fixed polygon into moving polygon
@@ -443,7 +443,7 @@ fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceI
                     {
                         if let Some(point) = Line::intersect_finite($a, $b, $c, $d)
                         {
-                            let fraction = $a.get_interpolant(&point, $a);
+                            let fraction = Line::get_interpolant($a, &point, $b);
                             if fraction < closest_fraction
                             {
                                 closest_fraction = fraction;
@@ -478,7 +478,75 @@ fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceI
                 None
             }
         }
-        _ => panic!("unimplemented circle trace")
+        (Shape::Circle(moving_circle), Shape::Circle(fixed_circle)) =>
+        {
+            let combined_radius = moving_circle.radius + fixed_circle.radius;
+            let point_1 = 
+                moving_borrowed.origin
+                .sub(&fixed_borrowed.origin)
+                .add(&moving_circle.origin_offset)
+                .sub(&fixed_circle.origin_offset);
+            // casting from point into expanded target circle at origin
+            let point_2 = point_1.add(&motion);
+            
+            let x1 = point_1.x;
+            let y1 = point_1.y;
+            let x2 = point_2.x;
+            let y2 = point_2.y;
+            
+            let dx = x2-x1;
+            let dy = y2-y1;
+            let dr2 = dx*dx + dy*dy;
+            
+            #[allow(non_snake_case)]
+            let D = determinant_2x2(x1, x2, y1, y2);
+            let semi_discriminant = combined_radius*combined_radius*dr2  - D*D;
+            
+            if semi_discriminant < 0.0
+            {
+                return None;
+            }
+            
+            let ysign = if y2 > y1 { 1.0 } else { -1.0 };
+            let discriminant = semi_discriminant.sqrt();
+            let dxs = dx / dr2;
+            let dys = dy / dr2;
+            
+            let x_base =  D * dys;
+            let y_base = -D * dxs;
+            
+            let x_discrim = dxs * discriminant / dr2;
+            let y_discrim = (dys * discriminant).abs() / dr2;
+            
+            let point_a = Point::from(x_base + ysign*x_discrim, y_base + y_discrim);
+            let point_b = Point::from(x_base - ysign*x_discrim, y_base - y_discrim);
+            
+            let fraction_a = Line::get_interpolant(&point_1, &point_a, &point_2);
+            let fraction_b = Line::get_interpolant(&point_1, &point_b, &point_2);
+            
+            let (normal, fraction) =
+            if fraction_a < 0.0 && fraction_a > 1.0 && fraction_b < 0.0 && fraction_b > 1.0
+            {
+                return None;
+            }
+            else if fraction_a < fraction_b
+            {
+                (point_a.normalize(), fraction_a)
+            }
+            else
+            {
+                (point_b.normalize(), fraction_b)
+            };
+            
+            Some(TraceInfo {
+                moving : Rc::clone(moving),
+                fixed : Rc::clone(fixed),
+                consumed_motion : motion.times(fraction),
+                normal,
+                fraction
+            })
+        }
+        _ => panic!("unimplemented circle-polygon trace")
     }
 }
 

@@ -1,75 +1,85 @@
-subdef find_shortest_trace()
+globaldef find_shortest_trace(me, travel)
 {
-    var shortest = 0;
-
-    with (Tile)
+    with (me as Character)
     {
-        var trace = entity_trace_with_margin(other, self, travel);
-        if(trace != 0 and (shortest == 0 or trace{sqdist} < shortest{sqdist}))
-            shortest = trace;
+        var shortest = 0;
+
+        with (Tile)
+        {
+            var trace = entity_trace_with_margin(other, self, travel);
+            if(trace != 0 and (shortest == 0 or trace{sqdist} < shortest{sqdist}))
+                shortest = trace;
+        }
+        
+        return shortest;
     }
-    
-    return shortest;
 }
 
-def vec_pointwise_add(a, b)
+globaldef vec_pointwise_add(a, b)
 {
     for(var i = 0; i < a->len() and i < b->len(); i++)
         a[i] += b[i];
     return a;
 }
 
-subdef touching_anything_relative(xoffset, yoffset)
+def touching_anything_relative(me, xoffset, yoffset)
 {
-    with (Tile)
-        if(aabb_overlap(vec_pointwise_add(other.bbox, [xoffset, yoffset, xoffset, yoffset]), bbox))
-            return true;
+    with (me as Character)
+    {
+        with (Tile)
+            if(aabb_overlap(vec_pointwise_add(other.bbox, [xoffset, yoffset, xoffset, yoffset]), bbox))
+                return true;
+    }
 }
 
-subdef solve_movement(travel)
+def solve_movement(me, travel)
 {
-    var touched_ground = false;
-    for(var max_iters = 8; max_iters > 0 and (travel[0] != 0 or travel[1] != 0); max_iters--)
+    with (me as Character)
     {
-        var trace = find_shortest_trace();
-        
-        if(trace == 0)
+        var touched_ground = false;
+        for(var max_iters = 8; max_iters > 0 and (travel[0] != 0 or travel[1] != 0); max_iters--)
         {
+            var trace = find_shortest_trace(me, travel);
+            
+            if(trace == 0)
+            {
+                x += travel[0];
+                y += travel[1];
+                update_bbox(self);
+                break;
+            }
+            
+            var new_vel = vec2_reject([xspeed, yspeed], trace{normal});
+            xspeed = new_vel[0];
+            yspeed = new_vel[1];
+            
+            if(trace{normal}[1] > 0.7)
+                touched_ground = true;
+            
+            travel = trace{travel};
+            
             x += travel[0];
             y += travel[1];
+            
+            travel = trace{remain};
             update_bbox(self);
-            break;
         }
         
-        var new_vel = vec2_reject([xspeed, yspeed], trace{normal});
-        xspeed = new_vel[0];
-        yspeed = new_vel[1];
-        
-        if(trace{normal}[1] > 0.7)
-            touched_ground = true;
-        
-        travel = trace{travel};
-        
-        x += travel[0];
-        y += travel[1];
-        
-        travel = trace{remain};
-        update_bbox(self);
+        return touched_ground;
     }
-    
-    return touched_ground;
 }
 
-subdef touching_tile()
+def touching_tile(me)
 {
-    update_bbox(self);
-    
-    with (Tile)
+    with (me as Character)
     {
-        if(aabb_overlap(other.bbox, self.bbox))
-            return self;
+        with (Tile)
+        {
+            if(aabb_overlap(other.bbox, self.bbox))
+                return self;
+        }
+        return false;
     }
-    return false;
 }
 
 with(Character)
@@ -99,7 +109,7 @@ with(Character)
     if(x_wish < 0)
         image_xscale = -1;
     
-    if(want_to_jump and (on_ground or touching_anything_relative(0, 1)))
+    if(want_to_jump and (on_ground or touching_anything_relative(self, 0, 1)))
     {
         yspeed = -jump_velocity;
         want_to_jump = false;
@@ -120,7 +130,7 @@ with(Character)
             xspeed = 0;
     }
     
-    if(solve_movement([xspeed, yspeed]))
+    if(solve_movement(self, [xspeed, yspeed]))
         on_ground = true;
     
     yspeed += Gravity/2;

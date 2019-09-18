@@ -1,12 +1,9 @@
 globaldef update_bbox(inst)
 {
-    with(inst)
-    {
-        bbox[0] = offsets[0] + x;
-        bbox[1] = offsets[1] + y;
-        bbox[2] = offsets[2] + x;
-        bbox[3] = offsets[3] + y;
-    }
+    inst.bbox[0] = inst.offsets[0] + inst.x;
+    inst.bbox[1] = inst.offsets[1] + inst.y;
+    inst.bbox[2] = inst.offsets[2] + inst.x;
+    inst.bbox[3] = inst.offsets[3] + inst.y;
 }
 
 globaldef abs(x)
@@ -208,26 +205,34 @@ globaldef entity_trace_with_margin(mover, static, travel)
 }
 
 obj Character {
+    var x, y, xspeed, yspeed;
+    var want_to_jump;
+    var x_wish;
+    var on_ground;
+    var accel, deaccel, drag, maxspeed, jump_velocity;
+    var sprite, offsets, image_xscale;
+    var bbox;
+    
     def create()
     {
-        far x = 64;
-        far y = 64;
-        far xspeed = 5.7;
-        far yspeed = 3;
-        far want_to_jump = false;
-        far x_wish = 0;
-        far on_ground = false;
+        x = 64;
+        y = 64;
+        xspeed = 5.7;
+        yspeed = 3;
+        want_to_jump = false;
+        x_wish = 0;
+        on_ground = false;
         
-        far accel = 0.125;
-        far deaccel = 0.05;
-        far drag = 0.95;
-        far maxspeed = 1.75;
-        far jump_velocity = 2.5;
+        accel = 0.125;
+        deaccel = 0.05;
+        drag = 0.95;
+        maxspeed = 1.75;
+        jump_velocity = 2.5;
         
-        far sprite = sprite_load("data/images/mychar.png", 16, 32);
-        far offsets = [-8, -16, +8, +16];
-        far bbox = [0,0,0,0];
-        far image_xscale = 1;
+        sprite = sprite_load("data/images/mychar.png", 16, 32);
+        offsets = [-8, -16, +8, +16];
+        bbox = [0,0,0,0];
+        image_xscale = 1;
         
         update_bbox(id);
     }
@@ -241,17 +246,19 @@ bare globalvar S_Tile = sprite_load_with_subimages("data/images/tile2.png", [[16
 bare globalvar S_Cursor = sprite_load_with_subimages("data/images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
 
 obj Tile {
+    var sprite;
+    var x, y, offsets, bbox;
     def create()
     {
-        far sprite = S_Tile;
+        sprite = S_Tile;
     }
     def init(arg_x, arg_y)
     {
-        far x = 16+arg_x*32;
-        far y = 16+arg_y*32;
+        x = 16+arg_x*32;
+        y = 16+arg_y*32;
         
-        far offsets = [-16, -16, +16, +16];
-        far bbox = [0,0,0,0];
+        offsets = [-16, -16, +16, +16];
+        bbox = [0,0,0,0];
         
         update_bbox(id);
     }

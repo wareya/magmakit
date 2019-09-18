@@ -5,7 +5,7 @@ use gammakit::Interpreter;
 use gammakit::Value;
 use gammakit::Custom as CustomStorage;
 
-pub (crate) type EngineBinding = Fn(&mut Engine, Vec<Value>) -> Result<Value, String>;
+pub (crate) type EngineBinding = fn(&mut Engine, Vec<Value>) -> Result<Value, String>;
 
 use super::*;
 
@@ -476,7 +476,7 @@ impl Engine {
         Ok(Value::Number(val/self.framelimiter_delta))
     }
     // It's okay if you have no idea what this is doing, just pretend that RefCell is a mutex and Rc is a smart pointer.
-    fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : &'static EngineBinding)
+    fn insert_binding(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>, name : &'static str, func : EngineBinding)
     {
         let engine_ref = Rc::clone(&engine);
         interpreter.insert_simple_binding(name.to_string(), Rc::new(RefCell::new(move |args : Vec<Value>| -> Result<Value, String>
@@ -489,52 +489,52 @@ impl Engine {
     
     pub (crate) fn insert_bindings(interpreter : &mut Interpreter, engine : &Rc<RefCell<Engine>>)
     {
-        Engine::insert_binding(interpreter, engine, "sqrt", &Engine::binding_sqrt);
+        Engine::insert_binding(interpreter, engine, "sqrt", Engine::binding_sqrt);
         
-        Engine::insert_binding(interpreter, engine, "program_load", &Engine::binding_program_load);
-        Engine::insert_binding(interpreter, engine, "program_set", &Engine::binding_program_set);
-        Engine::insert_binding(interpreter, engine, "program_reset", &Engine::binding_program_reset);
+        Engine::insert_binding(interpreter, engine, "program_load", Engine::binding_program_load);
+        Engine::insert_binding(interpreter, engine, "program_set", Engine::binding_program_set);
+        Engine::insert_binding(interpreter, engine, "program_reset", Engine::binding_program_reset);
         
-        Engine::insert_binding(interpreter, engine, "sprite_load", &Engine::binding_sprite_load);
-        Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", &Engine::binding_sprite_load_with_subimages);
+        Engine::insert_binding(interpreter, engine, "sprite_load", Engine::binding_sprite_load);
+        Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", Engine::binding_sprite_load_with_subimages);
         
-        Engine::insert_binding(interpreter, engine, "font_load", &Engine::binding_font_load);
-        Engine::insert_binding(interpreter, engine, "font_set", &Engine::binding_font_set);
-        Engine::insert_binding(interpreter, engine, "font_reset", &Engine::binding_font_reset);
+        Engine::insert_binding(interpreter, engine, "font_load", Engine::binding_font_load);
+        Engine::insert_binding(interpreter, engine, "font_set", Engine::binding_font_set);
+        Engine::insert_binding(interpreter, engine, "font_reset", Engine::binding_font_reset);
         
-        Engine::insert_binding(interpreter, engine, "draw_text", &Engine::binding_draw_text);
-        Engine::insert_binding(interpreter, engine, "draw_text_ext", &Engine::binding_draw_text_ext);
-        Engine::insert_binding(interpreter, engine, "draw_sprite", &Engine::binding_draw_sprite);
-        Engine::insert_binding(interpreter, engine, "draw_sprite_scaled", &Engine::binding_draw_sprite_scaled);
-        Engine::insert_binding(interpreter, engine, "draw_sprite_index", &Engine::binding_draw_sprite_index);
+        Engine::insert_binding(interpreter, engine, "draw_text", Engine::binding_draw_text);
+        Engine::insert_binding(interpreter, engine, "draw_text_ext", Engine::binding_draw_text_ext);
+        Engine::insert_binding(interpreter, engine, "draw_sprite", Engine::binding_draw_sprite);
+        Engine::insert_binding(interpreter, engine, "draw_sprite_scaled", Engine::binding_draw_sprite_scaled);
+        Engine::insert_binding(interpreter, engine, "draw_sprite_index", Engine::binding_draw_sprite_index);
         
-        Engine::insert_binding(interpreter, engine, "screen_size", &Engine::binding_screen_size);
-        Engine::insert_binding(interpreter, engine, "screen_size_w", &Engine::binding_screen_size_w);
-        Engine::insert_binding(interpreter, engine, "screen_size_h", &Engine::binding_screen_size_h);
+        Engine::insert_binding(interpreter, engine, "screen_size", Engine::binding_screen_size);
+        Engine::insert_binding(interpreter, engine, "screen_size_w", Engine::binding_screen_size_w);
+        Engine::insert_binding(interpreter, engine, "screen_size_h", Engine::binding_screen_size_h);
         
-        Engine::insert_binding(interpreter, engine, "key_down", &Engine::binding_key_down);
-        Engine::insert_binding(interpreter, engine, "key_pressed", &Engine::binding_key_pressed);
-        Engine::insert_binding(interpreter, engine, "key_released", &Engine::binding_key_released);
+        Engine::insert_binding(interpreter, engine, "key_down", Engine::binding_key_down);
+        Engine::insert_binding(interpreter, engine, "key_pressed", Engine::binding_key_pressed);
+        Engine::insert_binding(interpreter, engine, "key_released", Engine::binding_key_released);
         
-        Engine::insert_binding(interpreter, engine, "mouse_position", &Engine::binding_mouse_position);
-        Engine::insert_binding(interpreter, engine, "mouse_position_x", &Engine::binding_mouse_position_x);
-        Engine::insert_binding(interpreter, engine, "mouse_position_y", &Engine::binding_mouse_position_y);
-        Engine::insert_binding(interpreter, engine, "mouse_button_down", &Engine::binding_mouse_button_down);
-        Engine::insert_binding(interpreter, engine, "mouse_button_pressed", &Engine::binding_mouse_button_pressed);
-        Engine::insert_binding(interpreter, engine, "mouse_button_released", &Engine::binding_mouse_button_released);
+        Engine::insert_binding(interpreter, engine, "mouse_position", Engine::binding_mouse_position);
+        Engine::insert_binding(interpreter, engine, "mouse_position_x", Engine::binding_mouse_position_x);
+        Engine::insert_binding(interpreter, engine, "mouse_position_y", Engine::binding_mouse_position_y);
+        Engine::insert_binding(interpreter, engine, "mouse_button_down", Engine::binding_mouse_button_down);
+        Engine::insert_binding(interpreter, engine, "mouse_button_pressed", Engine::binding_mouse_button_pressed);
+        Engine::insert_binding(interpreter, engine, "mouse_button_released", Engine::binding_mouse_button_released);
         
-        Engine::insert_binding(interpreter, engine, "mouse_cursor_enable", &Engine::binding_mouse_cursor_enable);
-        Engine::insert_binding(interpreter, engine, "mouse_cursor_disable", &Engine::binding_mouse_cursor_disable);
+        Engine::insert_binding(interpreter, engine, "mouse_cursor_enable", Engine::binding_mouse_cursor_enable);
+        Engine::insert_binding(interpreter, engine, "mouse_cursor_disable", Engine::binding_mouse_cursor_disable);
         
-        Engine::insert_binding(interpreter, engine, "set_framerate", &Engine::binding_set_framerate);
-        Engine::insert_binding(interpreter, engine, "set_frametime", &Engine::binding_set_frametime);
-        Engine::insert_binding(interpreter, engine, "get_target_framerate", &Engine::binding_get_target_framerate);
-        Engine::insert_binding(interpreter, engine, "get_target_frametime", &Engine::binding_get_target_frametime);
-        Engine::insert_binding(interpreter, engine, "get_immediate_framerate", &Engine::binding_get_immediate_framerate);
-        Engine::insert_binding(interpreter, engine, "get_smooth_framerate", &Engine::binding_get_smooth_framerate);
-        Engine::insert_binding(interpreter, engine, "get_perceptual_framerate", &Engine::binding_get_perceptual_framerate);
-        Engine::insert_binding(interpreter, engine, "get_frame_delta_secs", &Engine::binding_get_frame_delta_secs);
-        Engine::insert_binding(interpreter, engine, "get_frame_delta_msecs", &Engine::binding_get_frame_delta_msecs);
-        Engine::insert_binding(interpreter, engine, "get_frame_delta_frames", &Engine::binding_get_frame_delta_frames);
+        Engine::insert_binding(interpreter, engine, "set_framerate", Engine::binding_set_framerate);
+        Engine::insert_binding(interpreter, engine, "set_frametime", Engine::binding_set_frametime);
+        Engine::insert_binding(interpreter, engine, "get_target_framerate", Engine::binding_get_target_framerate);
+        Engine::insert_binding(interpreter, engine, "get_target_frametime", Engine::binding_get_target_frametime);
+        Engine::insert_binding(interpreter, engine, "get_immediate_framerate", Engine::binding_get_immediate_framerate);
+        Engine::insert_binding(interpreter, engine, "get_smooth_framerate", Engine::binding_get_smooth_framerate);
+        Engine::insert_binding(interpreter, engine, "get_perceptual_framerate", Engine::binding_get_perceptual_framerate);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_secs", Engine::binding_get_frame_delta_secs);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_msecs", Engine::binding_get_frame_delta_msecs);
+        Engine::insert_binding(interpreter, engine, "get_frame_delta_frames", Engine::binding_get_frame_delta_frames);
     }
 }

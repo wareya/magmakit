@@ -37,7 +37,7 @@ fn load_string(root : &String, fname : &str) -> Result<String, String>
     return read_string(&mut file, fname);
 }
 
-fn main()
+fn main() -> Result<(), String>
 {
     use glium::glutin;
     
@@ -52,34 +52,21 @@ fn main()
     let context = glutin::ContextBuilder::new().with_vsync(true);
     let display = glium::Display::new(window, context, &events_loop).unwrap();
     
-    let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone())));
-    
-    let mut parser = gammakit::Parser::new_from_default().unwrap();
-    let gmc_init = parser.give_me_bytecode(&load_string(&program_path, "data/gmc/init.gmc").unwrap()).unwrap();
-    let gmc_step = parser.give_me_bytecode_share_bookkeeping(&load_string(&program_path, "data/gmc/step.gmc").unwrap(), &gmc_init).unwrap();
-    let gmc_draw = parser.give_me_bytecode_share_bookkeeping(&load_string(&program_path, "data/gmc/draw.gmc").unwrap(), &gmc_init).unwrap();
-    
     use std::rc::Rc;
     use std::cell::RefCell;
+    let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone())));
     
     use gammakit::Interpreter;
-    let mut interpreter = Interpreter::new(&gmc_init, Some(parser));
-    
+    let mut interpreter = Interpreter::new(gammakit::Parser::new_from_default().unwrap());
     interpreter.insert_default_bindings();
-    
     Engine::insert_bindings(&mut interpreter, &engine);
     
-    fn step_until_end_maybe_panic(interpreter : &mut Interpreter)
-    {
-        interpreter.step_until_error_or_exit().ok();
-        
-        if let Some(err) = &interpreter.last_error
-        {
-            panic!("{}", err);
-        }
-    };
+    let gmc_init = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/init.gmc").unwrap()).unwrap();
+    let gmc_step = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/step.gmc").unwrap()).unwrap();
+    let gmc_draw = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/draw.gmc").unwrap()).unwrap();
+    interpreter.restart(&gmc_init);
     
-    step_until_end_maybe_panic(&mut interpreter);
+    interpreter.step_until_error_or_exit()?;
     
     let mut closed = false;
     
@@ -125,7 +112,7 @@ fn main()
         }
         
         interpreter.restart(&gmc_step);
-        step_until_end_maybe_panic(&mut interpreter);
+        interpreter.step_until_error_or_exit()?;
         
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
@@ -137,7 +124,7 @@ fn main()
         }
         
         interpreter.restart(&gmc_draw);
-        step_until_end_maybe_panic(&mut interpreter);
+        interpreter.step_until_error_or_exit()?;
         
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
@@ -149,4 +136,5 @@ fn main()
             panic!("error: failed to lock engine in mainloop");
         }
     }
+    Ok(())
 }

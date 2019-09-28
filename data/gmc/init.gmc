@@ -229,7 +229,7 @@ obj Character {
         maxspeed = 1.75;
         jump_velocity = 2.5;
         
-        sprite = sprite_load("data/images/mychar.png", 16, 32);
+        sprite = sprite_load("images/mychar.png", 16, 32);
         offsets = [-8, -16, +8, +16];
         bbox = [0,0,0,0];
         image_xscale = 1;
@@ -242,8 +242,8 @@ bare globalvar Gravity = 0.06;
 
 bare globalvar MyChar = instance_create(Character);
 
-bare globalvar S_Tile = sprite_load_with_subimages("data/images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
-bare globalvar S_Cursor = sprite_load_with_subimages("data/images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
+bare globalvar S_Tile = sprite_load_with_subimages("images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
+bare globalvar S_Cursor = sprite_load_with_subimages("images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
 
 obj Tile {
     var sprite;
@@ -278,5 +278,5 @@ mouse_cursor_disable();
 
 set_framerate(250);
 
-bare globalvar FontMono = font_load("data/font/OxygenMono-Regular.ttf");
+bare globalvar FontMono = font_load("font/OxygenMono-Regular.ttf");
 

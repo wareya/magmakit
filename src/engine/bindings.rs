@@ -76,6 +76,17 @@ impl Engine {
         self.reset_program();
         default_return()
     }
+    fn binding_file_load_to_string(&mut self, mut args : Vec<Value>) -> Result<Value, String>
+    {
+        if args.len() != 1
+        {
+            return Err("error: expected exactly 1 arguments to file_load_to_string()".to_string());
+        }
+        let filename = pop_front!(args, Text)?;
+        
+        let string = load_string(&self.program_path, &self.prefix, &filename)?;
+        Ok(Value::Text(string))
+    }
     fn binding_draw_text(&mut self, mut args : Vec<Value>) -> Result<Value, String>
     {
         if args.len() != 3
@@ -494,6 +505,8 @@ impl Engine {
         Engine::insert_binding(interpreter, engine, "program_load", Engine::binding_program_load);
         Engine::insert_binding(interpreter, engine, "program_set", Engine::binding_program_set);
         Engine::insert_binding(interpreter, engine, "program_reset", Engine::binding_program_reset);
+        
+        Engine::insert_binding(interpreter, engine, "file_load_to_string", Engine::binding_file_load_to_string);
         
         Engine::insert_binding(interpreter, engine, "sprite_load", Engine::binding_sprite_load);
         Engine::insert_binding(interpreter, engine, "sprite_load_with_subimages", Engine::binding_sprite_load_with_subimages);

@@ -446,7 +446,6 @@ fn line_circle_intersection(radius : f64, from : &Point, delta : &Point) -> Opti
     }
 }
 
-/*
 fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceInfo>
 {
     let moving_borrowed = moving.borrow();
@@ -563,12 +562,13 @@ fn trace(moving : &ShapeRef, fixed : &ShapeRef, motion : Point) -> Option<TraceI
         }
         (Shape::Circle(moving_circle), Shape::Poly(fixed_polygon)) =>
         {
-            
+            // FIXME
+            None
         }
         _ => panic!("unimplemented circle-polygon trace")
     }
 }
-*/
+
 #[derive(Debug)]
 struct TraceInfo {
     moving : ShapeRef,

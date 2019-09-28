@@ -14,30 +14,30 @@ fn read_string(file : &mut BufReader<File>, fname : &str) -> Result<String, Stri
     Ok(string)
 }
 
-fn open_file(root : &String, fname : &str) -> Result<BufReader<File>, String>
+fn open_file(root : &String, prefix : &String, fname : &str) -> Result<BufReader<File>, String>
 {
-    if let Ok(f) = File::open(format!("{}/{}", root, fname))
+    if let Ok(f) = File::open(format!("{}/{}/{}", root, prefix, fname))
     {
         Ok(BufReader::new(f))
     }
     // FIXME add flag to disable
-    else if let Ok(f) = File::open(fname)
+    else if let Ok(f) = File::open(format!("{}/{}", prefix, fname))
     {
         Ok(BufReader::new(f))
     }
     else
     {
-        return Err(format!("error: failed to open file `{}`", fname));
+        return Err(format!("error: failed to open file `{}` (`{}`)", fname, format!("{}/{}", root, fname)));
     }
 }
 
-fn load_string(root : &String, fname : &str) -> Result<String, String>
+fn load_string(root : &String, prefix : &String, fname : &str) -> Result<String, String>
 {
-    let mut file = open_file(root, fname)?;
+    let mut file = open_file(root, prefix, fname)?;
     return read_string(&mut file, fname);
 }
 
-fn main() -> Result<(), String>
+fn launch_from_path(prefix : &str) -> Result<(), String>
 {
     use glium::glutin;
     
@@ -45,7 +45,8 @@ fn main() -> Result<(), String>
     program_path.pop();
     let program_path = program_path.to_str().unwrap().to_string();
     
-    println!("running from path `{}`", program_path);
+    println!("running from path `{}` with prefix `{}`", program_path, prefix);
+    let prefix = prefix.to_string();
     
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new().with_dimensions(glutin::dpi::LogicalSize::new(800.0, 600.0));
@@ -54,16 +55,16 @@ fn main() -> Result<(), String>
     
     use std::rc::Rc;
     use std::cell::RefCell;
-    let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone())));
+    let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone(), prefix.clone())));
     
     use gammakit::Interpreter;
     let mut interpreter = Interpreter::new(gammakit::Parser::new_from_default().unwrap());
     interpreter.insert_default_bindings();
     Engine::insert_bindings(&mut interpreter, &engine);
     
-    let gmc_init = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/init.gmc").unwrap()).unwrap();
-    let gmc_step = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/step.gmc").unwrap()).unwrap();
-    let gmc_draw = interpreter.restart_into_string(&load_string(&program_path, "data/gmc/draw.gmc").unwrap()).unwrap();
+    let gmc_init = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/init.gmc").unwrap()).unwrap();
+    let gmc_step = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/step.gmc").unwrap()).unwrap();
+    let gmc_draw = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/draw.gmc").unwrap()).unwrap();
     interpreter.restart(&gmc_init);
     
     interpreter.step_until_error_or_exit()?;
@@ -137,4 +138,17 @@ fn main() -> Result<(), String>
         }
     }
     Ok(())
+}
+
+fn main() -> Result<(), String>
+{
+    let args: Vec<_> = std::env::args().collect();
+    if args.len() > 1
+    {
+        launch_from_path(&args[1])
+    }
+    else
+    {
+        launch_from_path("data")
+    }
 }

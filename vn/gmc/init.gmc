@@ -1,0 +1,66 @@
+set_framerate(120);
+bare globalvar FontAsul = font_load("font/Asul-Regular.ttf");
+bare globalvar FontMono = font_load("font/OxygenMono-Regular.ttf");
+
+/*
+    astdict.insert(to_key!("text"), Value::Text(ast.text.clone()));
+    astdict.insert(to_key!("line"), Value::Number(ast.line as f64));
+    astdict.insert(to_key!("position"), Value::Number(ast.line as f64));
+    astdict.insert(to_key!("isparent"), Value::Number(bool_floaty(ast.isparent)));
+    
+    let children : Vec<Value> = ast.children.iter().map(|child| ast_to_dict(child)).collect();
+    
+    astdict.insert(to_key!("children"), Value::Array(Box::new(children)));
+    
+    if let Some(precedence) = ast.precedence
+    {
+        astdict.insert(to_key!("precedence"), Value::Number(precedence as f64));
+    }
+*/
+def astnode(text, line, position, isparent, children)
+{
+    return {
+        "text" : text,
+        "line" : line,
+        "position" : position,
+        "isparent" : isparent,
+        "children" : children
+    };
+}
+globaldef reprocess_vn_script(ast)
+{
+    if(ast{isparent})
+    {
+        var max = ast{children}->len();
+        if(ast{text} == "statement" and ast{children}->len() == 1 and ast{children}[0]{text} == "string")
+        {
+            var text = ast{children}[0]{children}[0]{text};
+            var newstatement = parse_text(
+                "{"+
+                "   set_current_line("+text+");"+
+                "   yield;"+
+                "}"
+            );
+            var new_ast = newstatement{children}[0];
+            ast = new_ast;
+        }
+        for(var i = 0; i < max; i += 1)
+        {
+            ast{children}[i] = reprocess_vn_script(ast{children}[i]);
+        }
+    }
+    return ast;
+}
+
+globalvar display_text = "riptide rush tastes like one of those cheap goo-filled or juice-filled grape-like or citrus-like gummy candies that has a very artificial edge when you first taste it but then the aftertaste kicks in and it's just mildly pleasant all around, even on subsequent sips";
+globaldef set_current_line(text)
+{
+    print("running set_current_line");
+    global.display_text = text;
+}
+
+globalvar grammar = file_load_to_string("data/grammar.txt");
+var script = file_load_to_string("data/script.gmc");
+var ast = parse_text_with_grammar(script, global.grammar);
+ast = reprocess_vn_script(ast);
+globalvar script = compile_ast_generator(ast)();

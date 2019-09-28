@@ -12,6 +12,7 @@ use self::render::*;
 
 pub (crate) struct Engine {
     program_path: String,
+    prefix: String,
     
     display: glium::Display,
     
@@ -61,14 +62,14 @@ fn duration_from_secs(secs : f64) -> std::time::Duration
 }
 
 impl Engine {
-    pub (crate) fn load(display : glium::Display, program_path : String) -> Engine
+    pub (crate) fn load(display : glium::Display, program_path : String, prefix : String) -> Engine
     {
-        let glprogram = Rc::new(Engine::build_glprogram(&display, &program_path));
+        let glprogram = Rc::new(Engine::build_glprogram(&display, &program_path, &prefix));
         let (vertex_buffer, indices) = Engine::build_vertex_buffer(&display);
         let text_system = TextSystem::new(&display);
-        Engine
-        {
+        Engine {
             program_path,
+            prefix,
             
             display,
             

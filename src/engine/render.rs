@@ -261,10 +261,10 @@ impl TextSystem
 
 
 impl Engine {
-    pub (super) fn build_glprogram(display : &glium::Display, program_path : &String) -> glium::Program
+    pub (super) fn build_glprogram(display : &glium::Display, program_path : &String, prefix : &String) -> glium::Program
     {
-        let vertex_shader_src = load_string(program_path, "data/glsl/vertex.glsl").unwrap();
-        let fragment_shader_src = load_string(program_path, "data/glsl/fragment.glsl").unwrap();
+        let vertex_shader_src = load_string(program_path, prefix, "glsl/vertex.glsl").unwrap();
+        let fragment_shader_src = load_string(program_path, prefix, "glsl/fragment.glsl").unwrap();
         let glprogram = glium::Program::from_source(display, &vertex_shader_src, &fragment_shader_src, None).unwrap();
         
         glprogram
@@ -285,8 +285,8 @@ impl Engine {
     
     pub (super) fn load_program(&mut self, filename_vertex : &str, filename_fragment : &str) -> Result<u64, String>
     {
-        let vertex_shader_src = load_string(&self.program_path, filename_vertex)?;
-        let fragment_shader_src = load_string(&self.program_path, filename_fragment)?;
+        let vertex_shader_src = load_string(&self.program_path, &self.prefix, filename_vertex)?;
+        let fragment_shader_src = load_string(&self.program_path, &self.prefix, filename_fragment)?;
         let glprogram = glium::Program::from_source(&self.display, &vertex_shader_src, &fragment_shader_src, None).or_else(|x| Err(format!("failed to compile program: {}", x)))?;
         
         let index = self.program_index_counter;
@@ -312,7 +312,7 @@ impl Engine {
         let mut text_system = self.text_system.borrow_mut();
         let index = text_system.font_index_counter;
         let mut bytes = Vec::new();
-        open_file(&self.program_path, fname).unwrap().read_to_end(&mut bytes).unwrap();
+        open_file(&self.program_path, &self.prefix, fname).unwrap().read_to_end(&mut bytes).unwrap();
         let id = text_system.glyph_brush.add_font_bytes(bytes);
         text_system.fonts.insert(index, id);
         text_system.font_index_counter += 1;
@@ -328,7 +328,7 @@ impl Engine {
     pub (super) fn load_sprite(&mut self, fname : &str, origin : (f64, f64)) -> u64
     {
         let index = self.sprite_index_counter;
-        let image = image::load(open_file(&self.program_path, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
+        let image = image::load(open_file(&self.program_path, &self.prefix, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
         let image_dimensions = image.dimensions();
         let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
         let texture = SrgbTexture2d::new(&self.display, image).unwrap();
@@ -342,7 +342,7 @@ impl Engine {
     pub (super) fn load_sprite_with_subimages(&mut self, fname : &str, images : Vec<SpriteImage>) -> u64
     {
         let index = self.sprite_index_counter;
-        let image = image::load(open_file(&self.program_path, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
+        let image = image::load(open_file(&self.program_path, &self.prefix, fname).unwrap(), image::ImageFormat::PNG).unwrap().to_rgba();
         let image_dimensions = image.dimensions();
         let image = glium::texture::RawImage2d::from_raw_rgba(image.into_raw(), image_dimensions);
         let texture = SrgbTexture2d::new(&self.display, image).unwrap();

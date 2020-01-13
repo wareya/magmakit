@@ -1,9 +1,0 @@
-if(mouse_button_released(0))
-{
-    print("A");
-    if(global.script)
-    {
-        print("B");
-        invoke global.script;
-    }
-}

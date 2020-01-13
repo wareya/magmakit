@@ -205,4 +205,64 @@ impl InputHandler {
         self.mouse_delta = (0.0, 0.0);
         self.mouse_scroll_delta = (0.0, 0.0);
     }
+    
+    
+    
+    pub fn key_down(&mut self, name : &str) -> bool
+    {
+        self.keys_down.get(name).cloned().unwrap_or(false)
+    }
+    pub fn key_pressed(&mut self, name : &str) -> bool
+    {
+        let down = self.keys_down.get(name).cloned().unwrap_or(false);
+        let down_previous = self.keys_down_previous.get(name).cloned().unwrap_or(false);
+        down && !down_previous
+    }
+    pub fn key_released(&mut self, name : &str) -> bool
+    {
+        let down = self.keys_down.get(name).cloned().unwrap_or(false);
+        let down_previous = self.keys_down_previous.get(name).cloned().unwrap_or(false);
+        !down && down_previous
+    }
+    
+    pub fn mouse_position(&mut self) -> (f64, f64)
+    {
+        self.mouse_pos
+    }
+    pub fn mouse_position_x(&mut self) -> f64
+    {
+        self.mouse_pos.0
+    }
+    pub fn mouse_position_y(&mut self) -> f64
+    {
+        self.mouse_pos.1
+    }
+    pub fn mouse_button_down(&mut self, button : u32) -> bool
+    {
+        if button >= 5
+        {
+            return false
+        }
+        self.mouse_buttons[button as usize]
+    }
+    pub fn mouse_button_pressed(&mut self, button : u32) -> bool
+    {
+        if button >= 5
+        {
+            return false
+        }
+        let down = self.mouse_buttons[button as usize];
+        let down_previous = self.mouse_buttons_previous[button as usize];
+        down && !down_previous
+    }
+    pub fn mouse_button_released(&mut self, button : u32) -> bool
+    {
+        if button >= 5
+        {
+            return false
+        }
+        let down = self.mouse_buttons[button as usize];
+        let down_previous = self.mouse_buttons_previous[button as usize];
+        !down && down_previous
+    }
 }

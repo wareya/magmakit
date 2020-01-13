@@ -7,6 +7,10 @@ use glium::Surface as _;
 
 use super::*;
 
+pub type ProgramID = u64;
+pub type SpriteID = u64;
+pub type FontID = u64;
+
 fn m4mult(a : &[[f32; 4]; 4], b : &[[f32; 4]; 4]) -> [[f32; 4]; 4]
 {
     let mut output = [[0f32; 4]; 4];
@@ -170,7 +174,7 @@ impl TextSystem
         self.glyph_brush.resize_texture(self.texture_dimensions.0, self.texture_dimensions.1);
         self.texture = Texture2d::empty_with_format(&self.display, U8U8U8U8, MipmapsOption::NoMipmap, self.texture_dimensions.0, self.texture_dimensions.1).unwrap();
     }
-    pub (crate) fn draw_text(&mut self, parent : &Engine, text : &String, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
+    pub (crate) fn draw_text(&mut self, parent : &Renderer, text : &str, x : f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
     {
         let font = match self.current_font
         {
@@ -218,7 +222,7 @@ impl TextSystem
             TextDrawData::new
         ) 
     }
-    fn draw_quads(&self, quads : &Vec<TextDrawData>, parent : &Engine)
+    fn draw_quads(&self, quads : &Vec<TextDrawData>, parent : &Renderer)
     {
         let mut target = parent.get_real_draw_target();
         for quad in quads
@@ -259,8 +263,144 @@ impl TextSystem
     }
 }
 
+pub struct Renderer {
+    program_path: String,
+    prefix: String,
+    
+    pub display: glium::Display,
+    
+    sprite_index_counter: u64,
+    sprites: HashMap<u64, SpriteSheet>,
+    
+    program_index_counter : u64,
+    programs: HashMap<u64, Rc<glium::Program>>,
+    
+    draw_target: Option<glium::Frame>,
+    default_surface: Option<Surface>,
+    draw_w: u32,
+    draw_h: u32,
+    matrix_view: [[f32; 4]; 4],
+    
+    #[allow(unused)]
+    surface_index_counter : u64,
+    surfaces: HashMap<u64, Surface>,
+    surface_target: Vec<u64>,
+    
+    vertex_buffer: glium::VertexBuffer<Vertex>,
+    indices: glium::index::NoIndices,
+    current_program: Rc<glium::Program>,
+    
+    default_program: Rc<glium::Program>,
+    
+    text_system: RefCell<TextSystem>,
+}
 
-impl Engine {
+impl Renderer {
+    pub fn new(display : glium::Display, program_path : String, prefix : String) -> Renderer
+    {
+        let glprogram = Rc::new(Renderer::build_glprogram(&display, &program_path, &prefix));
+        let (vertex_buffer, indices) = Renderer::build_vertex_buffer(&display);
+        let text_system = TextSystem::new(&display);
+        
+        Renderer {
+            program_path,
+            prefix,
+            
+            display,
+            
+            sprite_index_counter : 1,
+            sprites : HashMap::new(),
+            
+            program_index_counter : 1,
+            programs : HashMap::new(),
+            
+            draw_target : None,
+            default_surface : None,
+            draw_w : 0,
+            draw_h : 0,
+            matrix_view : [[0.0; 4]; 4],
+            
+            surface_index_counter : 1,
+            surfaces : HashMap::new(),
+            surface_target : Vec::new(),
+            
+            vertex_buffer,
+            indices,
+            current_program : Rc::clone(&glprogram),
+            
+            default_program : Rc::clone(&glprogram),
+            
+            text_system : RefCell::new(text_system),
+        }
+    }
+    
+    
+    pub fn screen_size(&mut self) -> (u32, u32)
+    {
+        (self.draw_w, self.draw_h)
+    }
+    pub fn screen_size_w(&mut self) -> u32
+    {
+        self.draw_w
+    }
+    pub fn screen_size_h(&mut self) -> u32
+    {
+        self.draw_h
+    }
+    
+    pub fn gl_program_load(&mut self, filename_vertex : &str, filename_fragment : &str) -> Result<ProgramID, String>
+    {
+        self.load_program(filename_vertex, filename_fragment)
+    }
+    pub fn gl_program_set(&mut self, program_index : ProgramID) -> Result<(), String>
+    {
+        self.set_program(program_index)
+    }
+    pub fn gl_program_reset(&mut self)
+    {
+        self.reset_program()
+    }
+    pub fn draw_text(&mut self, text : &str, x : f32, y : f32)
+    {
+        self.draw_text_ext2(&text, x, y, 999999999.0, 999999999.0, 24.0, [1.0, 1.0, 1.0, 1.0])
+    }
+    pub fn draw_text_ext(&mut self, text : &str, x : f32, y : f32, w : f32, h : f32, size : f32)
+    {
+        self.draw_text_ext2(&text, x, y, w, h, size, [1.0, 1.0, 1.0, 1.0])
+    }
+    pub fn font_load(&mut self, filename : &str) -> Result<FontID, String>
+    {
+        Ok(self.load_font(filename))
+    }
+    pub fn font_set(&mut self, font_index : FontID) -> Result<(), String>
+    {
+        self.set_font(font_index);
+        Ok(())
+    }
+    pub fn font_reset(&mut self) -> Result<(), String>
+    {
+        self.set_font(0);
+        Ok(())
+    }
+    pub fn sprite_load(&mut self, filename : &str, xoffset : f64, yoffset : f64) -> Result<SpriteID, String>
+    {
+        Ok(self.load_sprite(&filename, (xoffset, yoffset)))
+    }
+    pub fn sprite_load_with_subimages(&mut self, filename : &str, mut subimages : Vec<[(f64, f64); 3]>) -> Result<SpriteID, String>
+    {
+        let subimages_vec = subimages.iter_mut().map(|subimage| SpriteImage::extended(subimage[0], subimage[1], subimage[2])).collect::<Vec<_>>();
+        if subimages_vec.is_empty()
+        {
+            return Err("error: sprite_load_with_subimages must be given at least one subimage".to_string());
+        }
+        Ok(self.load_sprite_with_subimages(&filename, subimages_vec))
+    }
+    
+    
+    
+    
+    
+    
     pub (super) fn build_glprogram(display : &glium::Display, program_path : &String, prefix : &String) -> glium::Program
     {
         let vertex_shader_src = load_string(program_path, prefix, "glsl/vertex.glsl").unwrap();
@@ -353,19 +493,29 @@ impl Engine {
         index
     }
     
-    pub (super) fn draw_text(&mut self, text : &String, x :f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
+    pub fn draw_text_ext2(&mut self, text : &str, x :f32, y : f32, w : f32, h : f32, size : f32, color : [f32; 4])
     {
         self.text_system.borrow_mut().draw_text(&self, &text, x, y, w, h, size, color);
     }
-    pub (super) fn draw_sprite(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32)
+    pub fn draw_sprite(&mut self, sprite_index : SpriteID, x : f32, y : f32) -> Result<(), String>
     {
-        self.draw_sprite_scaled(spriteindex, imageindex, x, y, 1.0, 1.0)
+        self.draw_sprite_index(sprite_index, 0, x, y);
+        Ok(())
     }
-    pub (super) fn draw_sprite_scaled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
+    pub fn draw_sprite_scaled(&mut self, sprite_index : SpriteID, x : f32, y : f32, xscale : f32, yscale : f32) -> Result<(), String>
     {
-        self.draw_sprite_angled(spriteindex, imageindex, x, y, xscale, yscale, 0.0)
+        self.draw_sprite_index_scaled(sprite_index, 0, x, y, xscale, yscale);
+        Ok(())
     }
-    pub (super) fn draw_sprite_angled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
+    pub fn draw_sprite_index(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32)
+    {
+        self.draw_sprite_index_scaled(spriteindex, imageindex, x, y, 1.0, 1.0)
+    }
+    pub fn draw_sprite_index_scaled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32)
+    {
+        self.draw_sprite_index_angled(spriteindex, imageindex, x, y, xscale, yscale, 0.0)
+    }
+    pub fn draw_sprite_index_angled(&mut self, spriteindex : u64, imageindex : u64, x : f32, y : f32, xscale : f32, yscale : f32, angle : f32)
     {
         let angle_radians = deg2rad(angle as f64);
         let angle_cos = angle_radians.cos() as f32;
@@ -386,9 +536,9 @@ impl Engine {
         
         let matrix = m4mult(&matrix_pos, &matrix_rotscale);
         
-        self.draw_sprite_transformed(spriteindex, imageindex, matrix)
+        self.draw_sprite_index_transformed(spriteindex, imageindex, matrix)
     }
-    pub (super) fn draw_sprite_transformed(&mut self, spriteindex : u64, imageindex : u64, matrix : [[f32; 4]; 4])
+    pub (super) fn draw_sprite_index_transformed(&mut self, spriteindex : u64, imageindex : u64, matrix : [[f32; 4]; 4])
     {
         let spritesheet = self.sprites.get(&spriteindex).unwrap();
         let texture = &spritesheet.texture;

@@ -1,3 +1,0 @@
-
-
-draw_text_ext(global.display_text, 100, screen_size_h()-300, screen_size_w()-200, 250, 24);

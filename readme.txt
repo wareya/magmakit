@@ -6,7 +6,8 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 - surface drawing
 - sampling from multiple textures in a single shader
 - built in collision system (circles, n-gons. functions return a list of all possible results. transparent quadtree broadphase)
-- pack/unpack pseudo-json from strings
+- unpack json and xml from strings
+- pack json to strings
 
 - simple sample-and-emitter audio system, no busses, mixer channels are tags
 - faucnet style networking api
@@ -15,7 +16,6 @@ Something resembling the earliest stages of a game engine. Uses https://github.c
 -- networking style buffer access with byte arrays?
 - text with internal formatting
 - interact with native DLLs...?
-- fun stuff like font size control, drawing with transforms, colors, etc etc etc... it is all endless
 
 # License
 

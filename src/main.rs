@@ -5,7 +5,6 @@ mod engine;
 use self::engine::*;
 
 mod input;
-mod collision;
 
 fn read_string(file : &mut BufReader<File>, fname : &str) -> Result<String, String>
 {
@@ -37,7 +36,48 @@ fn load_string(root : &String, prefix : &String, fname : &str) -> Result<String,
     return read_string(&mut file, fname);
 }
 
-fn launch_from_path(prefix : &str) -> Result<(), String>
+use engine::bindings::*;
+
+struct Texts {
+    list: Vec<(String, f32, f32)>
+}
+
+impl Texts {
+    fn new() -> Texts
+    {
+        Texts{list : Vec::new()}
+    }
+    fn add(&mut self, text : &str, x : f32, y : f32)
+    {
+        self.list.push((text.to_string(), x, y))
+    }
+}
+
+impl Engine {
+    fn init(&mut self) -> Result<(), String>
+    {
+        let mut texts = Texts::new();
+        texts.add("FUCK", 0.0, 0.0);
+        self.global.insert(texts);
+        Ok(())
+    }
+    fn logic(&mut self) -> Result<(), String>
+    {
+        let mut texts = self.global.get_mut::<Texts>();
+        //texts.add("GOD DAMN", 10.0, 24.0); // works fine but creates infinite texts
+        Ok(())
+    }
+    fn draw(&mut self) -> Result<(), String>
+    {
+        for text in &self.global.get::<Texts>().list
+        {
+            self.renderer.draw_text(&text.0, text.1, text.2);
+        }
+        Ok(())
+    }
+}
+
+fn launch(prefix : &str) -> Result<(), String>
 {
     use glium::glutin;
     
@@ -56,18 +96,10 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
     use std::rc::Rc;
     use std::cell::RefCell;
     let engine = Rc::new(RefCell::new(Engine::load(display, program_path.clone(), prefix.clone())));
-    
-    use gammakit::Interpreter;
-    let mut interpreter = Interpreter::new(gammakit::Parser::new_from_default().unwrap());
-    interpreter.insert_default_bindings();
-    Engine::insert_bindings(&mut interpreter, &engine);
-    
-    let gmc_init = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/init.gmc").unwrap()).unwrap();
-    let gmc_step = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/step.gmc").unwrap()).unwrap();
-    let gmc_draw = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/draw.gmc").unwrap()).unwrap();
-    interpreter.restart(&gmc_init);
-    
-    interpreter.step_until_error_or_exit()?;
+    if let Ok(mut engine) = engine.try_borrow_mut()
+    {
+        engine.init()?;
+    }
     
     let mut closed = false;
     
@@ -77,7 +109,7 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
         {
             engine.check_init_framerate_limiter();
             
-            engine.input_handler.cycle();
+            engine.input.cycle();
             
             events_loop.poll_events(|event|
             {
@@ -87,18 +119,18 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
                     WindowEvent{event, ..} => match event
                     {
                         CloseRequested => closed = true,
-                        KeyboardInput{input, ..} => engine.input_handler.keyevent(input),
-                        MouseInput{state, button, ..} => engine.input_handler.mousebuttonevent(state, button),
-                        //CursorMoved{position, ..} => engine.input_handler.mouse_pos = position.into(),
-                        MouseWheel{delta, ..} => engine.input_handler.scroll(delta),
+                        KeyboardInput{input, ..} => engine.input.keyevent(input),
+                        MouseInput{state, button, ..} => engine.input.mousebuttonevent(state, button),
+                        //CursorMoved{position, ..} => engine.input.mouse_pos = position.into(),
+                        MouseWheel{delta, ..} => engine.input.scroll(delta),
                         _ => ()
                     },
                     DeviceEvent{event, ..} => match event
                     {
                         MouseMotion{delta, ..} =>
                         {
-                            engine.input_handler.mouse_delta.0 += delta.0;
-                            engine.input_handler.mouse_delta.1 += delta.1;
+                            engine.input.mouse_delta.0 += delta.0;
+                            engine.input.mouse_delta.1 += delta.1;
                         }
                         _ => ()
                     }
@@ -106,30 +138,14 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
                 }
             });
             engine.unsafe_check_global_cursor_position();
-        }
-        else
-        {
-            panic!("error: failed to lock engine in mainloop");
-        }
+            
+            engine.logic()?;
+            
+            engine.renderer.render_begin();
+            
+            engine.draw()?;
         
-        interpreter.restart(&gmc_step);
-        interpreter.step_until_error_or_exit()?;
-        
-        if let Ok(mut engine) = engine.try_borrow_mut()
-        {
-            engine.render_begin();
-        }
-        else
-        {
-            panic!("error: failed to lock engine in mainloop");
-        }
-        
-        interpreter.restart(&gmc_draw);
-        interpreter.step_until_error_or_exit()?;
-        
-        if let Ok(mut engine) = engine.try_borrow_mut()
-        {
-            engine.render_finish();
+            engine.renderer.render_finish();
             engine.cycle_framerate_limiter();
         }
         else
@@ -145,10 +161,10 @@ fn main() -> Result<(), String>
     let args: Vec<_> = std::env::args().collect();
     if args.len() > 1
     {
-        launch_from_path(&args[1])
+        launch(&args[1])
     }
     else
     {
-        launch_from_path("data")
+        launch("data")
     }
 }

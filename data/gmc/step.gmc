@@ -2,12 +2,12 @@ globaldef find_shortest_trace(me, travel)
 {
     with (me as Character)
     {
-        var shortest = 0;
-
+        var shortest = null;
+        
         with (Tile)
         {
             var trace = entity_trace_with_margin(other, self, travel);
-            if(trace != 0 and (shortest == 0 or trace{sqdist} < shortest{sqdist}))
+            if(trace != null and (shortest == null or trace{sqdist} < shortest{sqdist}))
                 shortest = trace;
         }
         
@@ -30,6 +30,7 @@ def touching_anything_relative(me, xoffset, yoffset)
             if(aabb_overlap(vec_pointwise_add(other.bbox, [xoffset, yoffset, xoffset, yoffset]), bbox))
                 return true;
     }
+    return false;
 }
 
 def solve_movement(me, travel)
@@ -41,7 +42,7 @@ def solve_movement(me, travel)
         {
             var trace = find_shortest_trace(me, travel);
             
-            if(trace == 0)
+            if(trace == null)
             {
                 x += travel[0];
                 y += travel[1];
@@ -86,12 +87,10 @@ with(Character)
 {
     yspeed += Gravity/2;
     
-    
     if(key_pressed("E"))
         want_to_jump = true;
     else if(key_released("E"))
         want_to_jump = false;
-    
     
     if(key_pressed("W"))
         x_wish = -1;

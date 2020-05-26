@@ -50,7 +50,7 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
     
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new().with_dimensions(glutin::dpi::LogicalSize::new(800.0, 600.0));
-    let context = glutin::ContextBuilder::new().with_vsync(true);
+    let context = glutin::ContextBuilder::new().with_vsync(false);
     let display = glium::Display::new(window, context, &events_loop).unwrap();
     
     use std::rc::Rc;
@@ -67,7 +67,16 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
     let gmc_draw = interpreter.restart_into_string(&load_string(&program_path, &prefix, "gmc/draw.gmc").unwrap()).unwrap();
     interpreter.restart(&gmc_init);
     
-    interpreter.step_until_error_or_exit()?;
+    macro_rules! run_interpreter { () => 
+    {
+        interpreter.step_until_error_or_exit().ok();
+        if let Some(err) = &interpreter.last_error
+        {
+            panic!("{}", err);
+        }
+    } }
+    
+    run_interpreter!();
     
     let mut closed = false;
     
@@ -113,7 +122,7 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
         }
         
         interpreter.restart(&gmc_step);
-        interpreter.step_until_error_or_exit()?;
+        run_interpreter!();
         
         if let Ok(mut engine) = engine.try_borrow_mut()
         {
@@ -125,7 +134,7 @@ fn launch_from_path(prefix : &str) -> Result<(), String>
         }
         
         interpreter.restart(&gmc_draw);
-        interpreter.step_until_error_or_exit()?;
+        run_interpreter!();
         
         if let Ok(mut engine) = engine.try_borrow_mut()
         {

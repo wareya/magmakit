@@ -1,9 +1,10 @@
 globaldef update_bbox(inst)
 {
-    inst.bbox[0] = inst.offsets[0] + inst.x;
-    inst.bbox[1] = inst.offsets[1] + inst.y;
-    inst.bbox[2] = inst.offsets[2] + inst.x;
-    inst.bbox[3] = inst.offsets[3] + inst.y;
+    inst.bbox = inst.offsets;
+    inst.bbox[0] += inst.x;
+    inst.bbox[1] += inst.y;
+    inst.bbox[2] += inst.x;
+    inst.bbox[3] += inst.y;
 }
 
 globaldef abs(x)
@@ -28,6 +29,7 @@ globaldef aabb_overlap(bbox1, bbox2)
         and bbox1[3] > bbox2[1]
         and bbox1[1] < bbox2[3])
         return true;
+    return false;
 }
 
 globaldef vec2_scalar_mult(a, s)
@@ -138,7 +140,7 @@ globaldef entity_trace(mover, static, travel)
     var try_y = line_axis_intersect(leading_point, new_leading_point, facing_point, 0); // wall
     
     // floor
-    if(try_x != 0)
+    if(try_x != null)
     {
         try_x = try_x[0];
         var x_travel = try_x[0] - leading_point[0];
@@ -154,10 +156,10 @@ globaldef entity_trace(mover, static, travel)
             };
         }
         else
-            try_x = 0;
+            try_x = null;
     }
     
-    if(try_y != 0)
+    if(try_y != null)
     {
         try_y = try_y[0];
         var y_travel = try_y[1] - leading_point[1];
@@ -173,9 +175,9 @@ globaldef entity_trace(mover, static, travel)
             };
         }
         else
-            try_y = 0;
+            try_y = null;
     }
-    if(try_y == 0 or (try_x != 0 and try_x{sqdist} < try_y{sqdist}))
+    if(try_y == null or (try_x != null and try_x{sqdist} < try_y{sqdist}))
         return try_x;
     return try_y;
 }
@@ -184,7 +186,7 @@ globaldef entity_trace_with_margin(mover, static, travel)
 {
     var result = entity_trace(mover, static, travel);
     
-    if(result == 0)
+    if(result == null)
         return;
     
     var margin = 0.1;
@@ -217,7 +219,7 @@ obj Character {
     {
         x = 64;
         y = 64;
-        xspeed = 5.7;
+        xspeed = 0;
         yspeed = 3;
         want_to_jump = false;
         x_wish = 0;
@@ -238,12 +240,12 @@ obj Character {
     }
 }
 
-bare globalvar Gravity = 0.06;
+const Gravity = 0.06;
 
-bare globalvar MyChar = instance_create(Character);
+const MyChar = instance_create(Character);
 
-bare globalvar S_Tile = sprite_load_with_subimages("images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
-bare globalvar S_Cursor = sprite_load_with_subimages("images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
+const S_Tile = sprite_load_with_subimages("images/tile2.png", [[16, 16, 0, 0, 32, 32], [16, 16, 32, 0, 64, 32]]);
+const S_Cursor = sprite_load_with_subimages("images/cursor.png", [[15, 15, 0, 0, 32, 32], [15, 15, 32, 0, 64, 32]]);
 
 obj Tile {
     var sprite;
@@ -278,5 +280,5 @@ mouse_cursor_disable();
 
 set_framerate(250);
 
-bare globalvar FontMono = font_load("font/OxygenMono-Regular.ttf");
+const FontMono = font_load("font/OxygenMono-Regular.ttf");
 
